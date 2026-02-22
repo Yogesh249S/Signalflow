@@ -1,0 +1,21 @@
+# =====================================================================
+# processing/requirements.txt  (NEW FILE — did not exist in original)
+# =====================================================================
+# CHANGE: original Dockerfile inlined pip installs with no version pins.
+#
+# kafka-python — synchronous consumer (retained; no async needed here)
+# psycopg2-binary — Postgres driver
+# psycopg2-binary includes extras (execute_values) used by db_writer.py
+# vaderSentiment — VADER sentiment analyser
+# python-snappy — decompresses snappy-encoded Kafka messages from producer
+# =====================================================================
+
+kafka-python==2.0.2
+psycopg2-binary==2.9.9
+vaderSentiment==3.3.2
+python-snappy==0.7.3
+redis==5.0.1
+
+# Phase 2: async redis for channel layer publishing from the processing service
+redis[asyncio]==5.0.1
+

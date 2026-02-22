@@ -1,0 +1,28 @@
+# =====================================================================
+# Django API requirements.txt — Phase 2
+# =====================================================================
+# Phase 1: django-redis (shared Redis cache), pinned versions.
+# Phase 2 additions:
+#   channels / channels-redis  — WebSocket push via Django Channels
+#   djangorestframework-simplejwt — JWT authentication
+#   daphne                     — ASGI server (replaces gunicorn) for WS
+#   django-filter              — DRF filtering support
+# =====================================================================
+
+Django
+djangorestframework
+django-cors-headers
+psycopg2-binary
+django-redis
+redis
+django-extensions
+# Phase 2 — WebSocket / ASGI
+channels
+channels-redis
+daphne
+
+# Phase 2 — JWT auth + per-client rate limiting
+djangorestframework-simplejwt
+
+# Phase 2 — queryset filtering
+django-filter

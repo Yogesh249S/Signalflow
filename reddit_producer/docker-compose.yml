@@ -1,0 +1,454 @@
+# =====================================================================
+# docker-compose.yml — Phase 2
+# =====================================================================
+# Phase 1 changes (kept):
+#   - Redis properly integrated with healthcheck + env wiring
+#   - Kafka dual INTERNAL/EXTERNAL listeners
+#   - Postgres tuning (shared_buffers, work_mem)
+#   - Resource limits on all services
+#   - Dead-letter queue consumer
+#   - Prometheus + Grafana monitoring
+#
+# Phase 2 additions:
+#   1. KAFKA 3-BROKER CLUSTER (kafka, kafka2, kafka3)
+#      - replication_factor=3 on all topics (set in kafka-init)
+#      - min.insync.replicas=2 so one broker can be dead and writes succeed
+#      - Kafka controller quorum via KRaft (no Zookeeper) — replaced below
+#      NOTE: kept Zookeeper here for docker-compose simplicity; KRaft needs
+#      a CLUSTER_ID env and is better suited to k8s (Phase 4).
+#
+#   2. POSTGRES READ REPLICA (postgres-replica)
+#      - Streaming replication from the primary via wal_level=replica
+#      - POSTGRES_REPLICA_HOST env passed to Django / the processing service
+#      - Django DB router sends all SELECTs to this host
+#
+#   3. MULTI-REPLICA PROCESSING
+#      - `deploy.replicas: 3` replaces `container_name: reddit_processing`
+#        (named containers cannot scale)
+#      - Memory limit per replica reduced to 400m; 3 × 400m < single 512m cap
+#
+#   4. DAPHNE (ASGI server with WebSocket support)
+#      - Replaces gunicorn for the Django API
+#      - Serves both HTTP and WebSocket (ws://host/ws/posts/)
+#      - Django Channels routes WebSocket frames to PostFeedConsumer
+# =====================================================================
+
+version: "3.9"
+
+#Shared environment for all services that talk to Postgres 
+x-postgres-env: &postgres-env
+  POSTGRES_DB:       reddit
+  POSTGRES_USER:     reddit
+  POSTGRES_PASSWORD: reddit
+
+#Shared Kafka broker template
+x-kafka-env: &kafka-env
+  KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+  KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+  KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+  KAFKA_MIN_INSYNC_REPLICAS: 2
+  KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+  KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+  KAFKA_SOCKET_SEND_BUFFER_BYTES: 1048576
+  KAFKA_SOCKET_RECEIVE_BUFFER_BYTES: 1048576
+  KAFKA_MESSAGE_MAX_BYTES: 2097152
+
+
+
+
+
+x-kafka-common: &kafka-common
+  image: confluentinc/cp-kafka:7.5.0
+  depends_on:
+    zookeeper:
+      condition: service_healthy
+  healthcheck:
+    test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+    interval: 10s
+    timeout:  5s
+    retries:  15
+  deploy:
+    resources:
+      limits:
+        memory: 1g
+
+
+services:
+
+  #  Zookeeper  
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME:   2000
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181"]
+      interval: 10s
+      timeout:   5s
+      retries:   5
+
+
+  #  Kafka broker 1 (primary — external port 29092)
+  kafka:
+    <<: *kafka-common
+    container_name: kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      <<: *kafka-env
+      KAFKA_BROKER_ID: 1
+      KAFKA_LISTENERS:           INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+
+  # Kafka broker 2 
+  kafka2:
+    <<: *kafka-common
+    container_name: kafka2
+    ports:
+      - "9093:9092"
+    environment:
+      <<: *kafka-env
+      KAFKA_BROKER_ID: 2
+      KAFKA_LISTENERS:           INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka2:9092,EXTERNAL://localhost:9093
+
+  #Kafka broker 3
+  kafka3:
+    <<: *kafka-common
+    container_name: kafka3
+    ports:
+      - "9094:9092"
+    environment:
+      <<: *kafka-env
+      KAFKA_BROKER_ID: 3
+      KAFKA_LISTENERS:           INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka3:9092,EXTERNAL://localhost:9094
+
+
+  # Kafka topic initialiser
+  # Phase 2: replication-factor=3, partitions=3 on all topics.
+  # Increasing partitions to 6 in the future lets you scale past 3 replicas.
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka_init
+    depends_on:
+      kafka:  { condition: service_healthy }
+      kafka2: { condition: service_healthy }
+      kafka3: { condition: service_healthy }
+    volumes:
+    - ./kafka-init.sh:/kafka-init.sh:ro
+    entrypoint: ["/bin/sh", "/kafka-init.sh"]
+    command: >
+      "
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists
+        --topic reddit.posts.raw     --replication-factor 3 --partitions 3;
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists
+        --topic reddit.posts.refresh --replication-factor 3 --partitions 3;
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists
+        --topic reddit.posts.dlq     --replication-factor 3 --partitions 1;
+
+      echo 'Waiting for topics to be visible on all brokers...';
+      for topic in reddit.posts.raw reddit.posts.refresh reddit.posts.dlq; do
+        until kafka-topics --bootstrap-server kafka:9092,kafka2:9092,kafka3:9092
+                --describe --topic $$topic 2>/dev/null | grep -q 'ReplicationFactor: 3'; do
+          echo \"  waiting for $$topic...\";
+          sleep 2;
+        done;
+        echo \"  $$topic ready.\";
+      done;
+      echo 'All topics confirmed on all brokers.';
+      "
+
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    container_name: postgres
+    environment:
+      <<: *postgres-env
+      POSTGRES_INITDB_ARGS: "--auth-host=trust --auth-local=trust"
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./pg_hba.conf:/pg_hba.conf:ro
+      - ./storage/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    ports:
+      - "5433:5432"
+    command: >
+      postgres
+        -c hba_file=/pg_hba.conf  
+        -c shared_buffers=512MB
+        -c work_mem=16MB
+        -c max_connections=100
+        -c log_min_duration_statement=500
+        -c wal_level=replica
+        -c max_wal_senders=10
+        -c wal_keep_size=64
+        -c hot_standby=on
+        -c max_replication_slots=10
+        -c listen_addresses='*'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reddit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+
+  postgres-replica:
+    image: timescale/timescaledb:latest-pg15
+    container_name: postgres_replica
+    # GUCs passed as the postgres binary arguments at the compose level.
+    # These are appended AFTER docker-entrypoint.sh runs initdb (skipped here
+    # because PGDATA already has PG_VERSION from pg_basebackup), so they are
+    # guaranteed to reach the postgres process — unlike -c flags buried inside
+    # a shell script where exec handoff swallows them before parsing.
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c work_mem=8MB
+        -c max_connections=100
+        -c hot_standby=on
+    environment:
+      POSTGRES_USER:     reddit
+      POSTGRES_PASSWORD: reddit
+      POSTGRES_DB:       reddit
+      POSTGRES_PRIMARY_HOST: postgres
+    volumes:
+      - pg_replica_data:/var/lib/postgresql/data
+      - ./replica-init.sh:/docker-entrypoint-initdb.d/00_replica_init.sh:ro
+    ports:
+      - "5434:5432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reddit"]
+      interval: 10s
+      timeout:   5s
+      retries:   15
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  #  Schema migration runner
+  migrate:
+    build:
+      context: .
+      dockerfile: processing/Dockerfile
+    container_name: reddit_migrate
+    command: sh -c "sleep 20 && python -m storage.migrate"
+    env_file: .env
+    environment:
+      POSTGRES_HOST:     postgres
+      POSTGRES_PORT:     5432
+      POSTGRES_DB:       reddit
+      POSTGRES_USER:     reddit
+      POSTGRES_PASSWORD: reddit
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+
+  # Redis
+  # Serves three roles in Phase 2:
+  #   DB 0 — velocity cache (used by all processing replicas)
+  #   DB 1 — Django cache backend (shared across Daphne workers)
+  #   DB 2 — Django Channels channel layer (WebSocket group messaging)
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout:  3s
+      retries:  5
+    deploy:
+      resources:
+        limits:
+          memory: 600m
+
+
+  #  Ingestion service
+  # Phase 2: now reads subreddit list from subreddit_config table instead of
+  # TOP_SUBREDDITS env var. Hot-reload on SIGHUP or DB poll (every 60 s).
+  ingestion:
+    build:
+      context: .
+      dockerfile: ingestion/Dockerfile
+    container_name: reddit_ingestion
+    env_file: .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092,kafka2:9092,kafka3:9092
+      POSTGRES_HOST:           postgres
+      POSTGRES_PORT:           5432
+      POSTGRES_DB:             reddit
+      POSTGRES_USER:           reddit
+      POSTGRES_PASSWORD:       reddit
+      SCHEDULER_CONFIG_POLL_S: "60"   # how often to check subreddit_config for changes
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+      migrate:    { condition: service_completed_successfully }
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+
+  #  Processing service 3 replicas
+  # Phase 2: `deploy.replicas: 3` enables horizontal scale.
+  #   - Kafka partition assignment (3 partitions) distributes load evenly.
+  #   - All replicas share the Redis velocity cache (DB 0) — safe concurrent writes.
+  #   - Each replica publishes to the Redis channel layer after each batch flush.
+  #   - container_name removed (named containers cannot scale).
+  processing:
+    build:
+      context: .
+      dockerfile: processing/Dockerfile
+    env_file: .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092,kafka2:9092,kafka3:9092
+      POSTGRES_HOST:     postgres
+      POSTGRES_PORT:     5432
+      REDIS_URL:         redis://redis:6379
+      METRICS_PORT:      "8000"
+      # Phase 2: after each batch flush, signal Django Channels via channel layer
+      CHANNEL_LAYER_URL: redis://redis:6379/2
+    ports:
+      - "8010-8012:8000"   # each replica gets a distinct host port for Prometheus scraping
+    depends_on:
+      kafka-init:       { condition: service_completed_successfully }
+      postgres:         { condition: service_healthy }
+      redis:            { condition: service_healthy }
+      migrate:          { condition: service_completed_successfully }
+    restart: unless-stopped
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          memory: 400m
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+
+  #  DLQ Consumer 
+  dlq-consumer:
+    build:
+      context: .
+      dockerfile: processing/Dockerfile
+    container_name: reddit_dlq
+    command: python -m processing.dlq_consumer
+    env_file: .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092,kafka2:9092,kafka3:9092
+      REDIS_URL:     redis://redis:6379
+      DLQ_REPLAY_PORT: "8001"
+    ports:
+      - "8001:8001"
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+      redis:      { condition: service_healthy }
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+
+  # Django API (Daphne ASGI server)
+  # Phase 2: switched from gunicorn (WSGI) to daphne (ASGI).
+  #   - Daphne handles both HTTP requests and WebSocket connections.
+  #   - Django Channels uses the Redis channel layer (DB 2) to fan out
+  #     post-update messages to all connected WebSocket clients.
+  django:
+    build:
+      context: ..
+      dockerfile: Dockerfile.django
+    container_name: reddit_django
+    command: daphne -b 0.0.0.0 -p 8080 config.routing:application
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE:  config.settings
+      POSTGRES_HOST:           postgres
+      POSTGRES_PORT:           5432
+      POSTGRES_REPLICA_HOST:   postgres-replica
+      POSTGRES_REPLICA_PORT:   5432
+      REDIS_URL:               redis://redis:6379
+      DJANGO_ALLOWED_HOSTS:    "localhost,127.0.0.1,django"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres-replica: { condition: service_healthy }
+      redis:            { condition: service_healthy }
+      migrate:          { condition: service_completed_successfully }
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+
+  #  Prometheus 
+  # Phase 2: scrapes all 3 processing replicas (ports 8000–8002)
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    depends_on:
+      - processing
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+
+  #Grafana
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/processing.json
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+
+volumes:
+  pg_data:
+  pg_replica_data:
+  prometheus_data:
+  grafana_data:

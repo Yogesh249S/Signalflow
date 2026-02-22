@@ -1,0 +1,25 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# Django
+db.sqlite3
+*.sqlite3
+
+# Environment secrets - NEVER commit these
+.env
+reddit_producer/.env
+
+# Docker volumes / data
+pg_data/
+pg_replica_data/
+
+# Compiled files
+*.pyc
+__pycache__/
+*/__pycache__/

@@ -1,0 +1,17 @@
+# =====================================================================
+# ingestion/requirements.txt  (NEW FILE — did not exist in original)
+# =====================================================================
+# CHANGE: original Dockerfile ran `pip install praw kafka-python python-dotenv`
+# with no version pins. This is a new requirements.txt with pinned versions
+# for reproducible builds, plus the new async dependencies.
+#
+# asyncpraw  — async version of PRAW; required for the concurrent scheduler
+# aiokafka   — async Kafka producer; required by the new kafka_client.py
+# python-snappy — C extension for snappy compression in aiokafka
+# =====================================================================
+
+asyncpraw==7.7.1
+aiokafka==0.10.0
+python-dotenv==1.0.1
+python-snappy==0.7.3
+psycopg2-binary==2.9.9

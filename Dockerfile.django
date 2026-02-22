@@ -1,0 +1,30 @@
+# Dockerfile.django — Phase 2
+# ============================
+# Phase 2: switched from gunicorn (WSGI) to daphne (ASGI) to support
+# Django Channels WebSocket connections alongside regular HTTP.
+#
+# Daphne listens on 0.0.0.0:8080 and handles:
+#   - HTTP  → Django REST Framework API endpoints
+#   - WS    → Django Channels PostFeedConsumer at ws://.../ws/posts/
+#
+# The ASGI application entry point is config.routing:application
+# (defined in config/routing.py) which routes by protocol type.
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# System deps: libpq for psycopg2
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Run Django migrations then start Daphne
+# In docker-compose the django service calls `daphne` directly via `command:`
+# This CMD is a sensible default for standalone use
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8080", "config.routing:application"]

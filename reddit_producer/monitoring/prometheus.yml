@@ -1,0 +1,47 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Phase 2: 3 processing replicas each expose /metrics on host ports 8000-8002.
+  # Docker Compose maps container port 8000 → host ports 8000, 8001, 8002.
+  # We scrape the host-side ports so Prometheus can reach each replica independently.
+  # The `instance` label will distinguish replicas in Grafana.
+  - job_name: reddit-processor
+    static_configs:
+    
+      - targets:
+          - "host.docker.internal:8010"
+          - "host.docker.internal:8011"
+          - "host.docker.internal:8012"
+    metrics_path: /metrics
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+
+  # DLQ consumer metrics
+  - job_name: reddit-dlq
+    static_configs:
+      - targets: ["dlq-consumer:8001"]
+    metrics_path: /metrics
+
+  # Django / Daphne metrics (optional — add django-prometheus if needed)
+  # - job_name: reddit-django
+  #   static_configs:
+  #     - targets: ["django:8080"]
+  #   metrics_path: /metrics/
+
+  # Postgres exporter (optional)
+  # - job_name: postgres
+  #   static_configs:
+  #     - targets: ["postgres-exporter:9187"]
+
+  # Redis exporter (optional)
+  # - job_name: redis
+  #   static_configs:
+  #     - targets: ["redis-exporter:9121"]
+
+  # Kafka JMX exporter (optional)
+  # - job_name: kafka
+  #   static_configs:
+  #     - targets: ["kafka-jmx:5556"]
