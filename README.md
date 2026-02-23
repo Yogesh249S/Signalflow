@@ -36,7 +36,6 @@ REDDIT_CLIENT_ID=your_client_id
 REDDIT_CLIENT_SECRET=your_client_secret
 REDDIT_USER_AGENT=signalflow:v1.0 (by /u/your_username)
 
-
 POSTGRES_DB=reddit
 POSTGRES_USER=reddit
 POSTGRES_PASSWORD=reddit
@@ -282,13 +281,13 @@ inactive      post > 24 h       not refreshed
 
 **Hot-reload** — `config_watcher` polls `subreddit_config` every 60s. New subreddits spawn tasks, removed ones are cancelled. No restart needed.
 
-**Rate limits** — ~60 req/min per OAuth app. Each subreddit costs ~3.4 req/min. One app supports 16–18 subreddits at aggressive intervals. Add OAuth apps + ingestion containers with distinct `INGESTION_SHARD_ID` for more.
+**Rate limits** — Reddit allows 60 req/min per OAuth app. At 120 subreddits the pipeline peaks at ~93 req/min during refresh bursts — exceeding the stated limit. `asyncpraw` handles 429 responses automatically via the `Retry-After` header, backing off and resuming without dropping messages. One app supports 16–18 subreddits at aggressive intervals. Add OAuth apps + ingestion containers with distinct `INGESTION_SHARD_ID` for more.
 
-**Burst management under load** — During a 12-hour stress test across 120 subreddits, refresh cycles caused periodic bursts peaking at 25 req/s — the Reddit API rate limit ceiling. Rather than throttling at the ingestion layer, the asyncio task scheduler naturally staggers these bursts: sustained throughput between cycles holds at 2–3 req/s, well inside the 60 req/min cap. Batch flush P99 latency settled from ~130ms at startup to a stable ~70ms after warm-up and held there overnight. The 50 DLQ messages visible in the dashboard are the expected one-time flush from inserting the initial `subreddits.sql` seed — the counter was static throughout the run, confirming zero ongoing data loss.
+**Burst management under load** — During a 12-hour stress test across 120 subreddits, refresh cycles caused periodic bursts peaking at 25 req/s. The asyncio scheduler naturally staggers these; sustained throughput between cycles holds at 2–3 req/s, well inside the 60 req/min cap. Batch flush P99 latency settled from ~130ms at startup to a stable ~70ms after warm-up and held there overnight. The DLQ counter was static throughout the run, confirming zero ongoing data loss.
 
-![10-hour stress test — Messages/sec, Batch Flush Latency P50/P95/P99, Batch Outcomes, DLQ rate](reddit_producer/assets/graphana_stress_graph.png)
+![12-hour stress test — Messages/sec, Batch Flush Latency P50/P95/P99, Batch Outcomes, DLQ rate](reddit_producer/assets/graphana_stress_graph.png)
 
-*Burst spikes to 25 req/s at refresh cycles, P99 latency stabilising at ~70ms, sustained ok batch rate with negligible errors, DLQ flat at 100 after initial seed flush.*
+*Burst spikes to 25 req/s at refresh cycles, P99 latency stabilising at ~70ms, sustained ok batch rate with negligible errors, DLQ flat after initial seed flush.*
 
 ---
 
@@ -358,6 +357,10 @@ last_polled_at    TIMESTAMPTZ  -- updated every cycle
 
 ## 6. Django API & WebSocket
 
+Django REST Framework serves all data as JSON to the React dashboard. Two channels run simultaneously — REST polling as the reliable baseline, WebSocket push for instant updates.
+
+### Endpoints
+
 ```
 GET  /api/posts/          paginated feed — annotated, NLP joined
 GET  /api/stats/          aggregates — 30s Redis cache
@@ -367,29 +370,67 @@ GET  /health/             no auth, no DB
 WS   /ws/posts/           live update stream
 ```
 
-**Post response:**
+### How the frontend receives data
+
+```
+REST  GET /api/posts/
+  └── React polls every 30s as a reliable fallback
+  └── DRF serializes rows from Postgres → JSON → dashboard
+  └── Response cached 30s in Redis — repeated fetches hit cache, not DB
+  └── Cursor pagination via ?cursor=<ISO-datetime> — no OFFSET scan
+
+REST  GET /api/stats/
+  └── Aggregate query — top posts, authors, subreddit breakdown
+  └── Cached 30s in Redis per date range
+
+WebSocket  WS /ws/posts/
+  └── Processing flushes a batch → Redis PUBLISH asgi:group:posts_feed
+  └── Django Channels delivers to every connected client instantly
+  └── Dashboard updates score, velocity, trending badge without waiting for the next poll
+```
+
+The 30s poll is a safety net only — if the WebSocket drops, the dashboard stays current within 30 seconds. Under normal operation the WebSocket carries all meaningful updates.
+
+### /api/posts/ — live JSON response
+
+DRF serializes each post with live metrics, processing-computed velocity and trending signals, SQL-annotated fields, and joined NLP features — all in a single response with no N+1 queries.
+
+![DRF /api/posts/ live JSON response](reddit_producer/assets/drf_json.png)
 
 ```json
 {
-  "id": "xyz789",
-  "subreddit": "technology",
-  "current_score": 1200,
-  "score_velocity": 3.85,
-  "comment_velocity": 0.14,
-  "trending_score": 0.2,
-  "is_trending": false,
-  "engagement_score": 1290,
-  "age_minutes": 312.4,
-  "momentum": 4.12,
-  "nlp": {
-    "sentiment_score": 0.34,
-    "keywords": ["breakthrough", "quantum", "computing"],
-    "topic_cluster": null
-  }
+  "count": 100,
+  "next": "http://localhost:8080/api/posts/?cursor=2026-02-22T14%3A00%3A00Z",
+  "previous": null,
+  "results": [
+    {
+      "id": "xyz789",
+      "subreddit": "technology",
+      "title": "New breakthrough in quantum computing",
+      "author": "user123",
+      "created_utc": "2026-02-22T14:00:00Z",
+      "current_score": 1200,
+      "current_comments": 45,
+      "current_ratio": 0.97,
+      "score_velocity": 3.85,
+      "comment_velocity": 0.14,
+      "trending_score": 0.2,
+      "is_trending": false,
+      "poll_priority": "aggressive",
+      "engagement_score": 1290,
+      "age_minutes": 312.4,
+      "momentum": 4.12,
+      "nlp": {
+        "sentiment_score": 0.34,
+        "keywords": ["breakthrough", "quantum", "computing"],
+        "topic_cluster": null
+      }
+    }
+  ]
 }
 ```
 
-`engagement_score`, `age_minutes`, `momentum` — SQL annotations, not Python. `nlp` — single `prefetch_related` join. Cursor pagination — no `OFFSET` degradation.
+`engagement_score`, `age_minutes`, `momentum` — computed as SQL `annotate()` expressions at query time, not stored columns and not Python. `nlp` — joined via a single `prefetch_related("nlp_features")` call, one extra query for the whole page regardless of page size.
 
 ---
 
@@ -513,4 +554,3 @@ The following are implemented in the codebase but not enabled in the local devel
 
 ---
 
-*SignalFlow — Phase 2. Built by Yogesh S.*
