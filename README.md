@@ -223,6 +223,47 @@ Processing Service  (×3 replicas, one partition each)
 Prometheus  scrapes ×3 replicas every 15s  →  Grafana
 ```
 
+Ingestion Service  (asyncio, concurrent per-source tasks)
+     │  Reddit · HackerNews · Bluesky · YouTube
+     │  aiokafka producer — Snappy compression, 500ms linger
+     ▼
+Kafka Cluster  (3 brokers, RF=3, minISR=2)
+     ├── reddit.posts.raw          3 partitions
+     ├── reddit.posts.refresh      3 partitions
+     ├── hackernews.stories.raw    3 partitions
+     ├── bluesky.posts.raw         6 partitions
+     ├── youtube.comments.raw      3 partitions
+     ├── signals.normalised        6 partitions  ← unified cross-platform
+     └── *.dlq                     1 partition each
+     │
+     ▼
+Processing Service  (×3 replicas)
+     │  Micro-batch flush · VADER sentiment · spaCy NER
+     │  Velocity · Normalised score · Trending score
+     │
+     ├──▶  Postgres Primary (TimescaleDB)
+     │          │  WAL streaming replication
+     │          ▼
+     │     Postgres Replica ◀── ORM reads (ReadReplicaRouter)
+     │
+     ├──▶  Redis DB0  (velocity cache)
+     ├──▶  Redis DB1  (Django response cache 30s TTL)
+     ├──▶  Redis DB2  (Django Channels pub/sub)
+     └──▶  Redis DB3  (normalised score rolling baselines)
+               │
+               ▼
+          Divergence Detector  (runs every 15 min)
+          └──▶  platform_divergence table
+               │
+          Django / Daphne ASGI
+               ├── /api/v1/signals/    cross-platform feed
+               ├── /api/v1/pulse/      topic sentiment summary
+               ├── /api/v1/trending/   cross-platform trending
+               ├── /api/v1/compare/    divergence events
+               ├── /ws/signals/        live cross-platform feed
+               └── /admin/             hot-reload source config
+
+
 ---
 
 ## 2. Data Flow
