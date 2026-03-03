@@ -223,9 +223,10 @@ Processing Service  (×3 replicas, one partition each)
 Prometheus  scrapes ×3 replicas every 15s  →  Grafana
 ```
 
+```
 Ingestion Service  (asyncio, concurrent per-source tasks)
      │  Reddit · HackerNews · Bluesky · YouTube
-     │  aiokafka producer — Snappy compression, 500ms linger
+     │  aiokafka producer — Snappy compression, ayncio + asyncpraw
      ▼
 Kafka Cluster  (3 brokers, RF=3, minISR=2)
      ├── reddit.posts.raw          3 partitions
@@ -263,7 +264,7 @@ Processing Service  (×3 replicas)
                ├── /ws/signals/        live cross-platform feed
                └── /admin/             hot-reload source config
 
-
+```
 ---
 
 ## 2. Data Flow
