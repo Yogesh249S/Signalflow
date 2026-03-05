@@ -40,8 +40,8 @@ A post appears on r/technology. Within seconds:
 4. When the post score jumps from 45 → 1200 five minutes later, velocity recalculates `(1200-45)/300 = 3.85/s`, trending score updates, and a Redis pub/sub push delivers the update to every connected WebSocket client instantly
 5. Grafana reads pre-aggregated Postgres views — topic traction timeline, lead/lag heatmap, trending 24h, platform leaderboard
 
-> **Interactive architecture diagram** → [`signal_flow_v2.html`](reddit_producer/assets/signal_flow_v2.html) — download and open in browser. Traces a single post through every layer of the pipeline.
-
+> **Interactive architecture diagram** → [signal_flow_v2.html](https://yogesh249s.github.io/Reddit_signalflow/https://github.com/Yogesh249S/Reddit_signalflow/blob/main/signal_flow_architecture.html)
+> *Opens in browser — traces a single post through every layer of the pipeline*
 ---
 
 ## API
