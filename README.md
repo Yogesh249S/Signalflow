@@ -6,12 +6,27 @@ Real-time cross-platform social signal intelligence. Ingests content from Reddit
 
 ## Live
 
-![SignalFlow Grafana Dashboard](./reddit_producer/assets/d1)
-(./reddit_producer/assets/d2-1)
-(./reddit_producer/assets/d2-2)
-(./reddit_producer/assets/d3)
+**Pipeline latency and batch flush performance — processing service across 3 replicas**
 
-*Topic Intelligence — 1.49K active cross-platform topics, 14 topics live on 4+ platforms simultaneously, sentiment tracked over time, cross-platform lead/lag detection*
+![SignalFlow Grafana Latency Dashboard](reddit_producer/assets/d1.png)
+
+---
+
+**Ingestion throughput — last 1 hour. Messages consumed per topic, DLQ rate, Kafka poll latency**
+
+![SignalFlow ingestion metrics - 1hr](reddit_producer/assets/d2-1.png)
+
+---
+
+**Ingestion throughput — 2 day view. Sustained message volume across Reddit, HackerNews, Bluesky, YouTube**
+
+![SignalFlow ingestion metrics - 2days](reddit_producer/assets/d2-2.png)
+
+---
+
+**Topic Intelligence — 1.49K active cross-platform topics, 14 topics live on 3+ platforms simultaneously, sentiment tracked over time, cross-platform lead/lag detection**
+
+![SignalFlow Topic Intelligence](reddit_producer/assets/d3.png)
 
 ---
 
@@ -25,7 +40,7 @@ A post appears on r/technology. Within seconds:
 4. When the post score jumps from 45 → 1200 five minutes later, velocity recalculates `(1200-45)/300 = 3.85/s`, trending score updates, and a Redis pub/sub push delivers the update to every connected WebSocket client instantly
 5. Grafana reads pre-aggregated Postgres views — topic traction timeline, lead/lag heatmap, trending 24h, platform leaderboard
 
-> **Interactive architecture diagram** → [`signal_flow_architecture.html`]((./reddit_producer/assets/signal_flow_architecture.html)) *(open in browser — traces a single post through every layer)*
+> **Interactive architecture diagram** → [`signal_flow_v2.html`](reddit_producer/assets/signal_flow_v2.html) — download and open in browser. Traces a single post through every layer of the pipeline.
 
 ---
 
@@ -48,11 +63,11 @@ curl -X POST http://localhost:8080/api/token/ \
 
 # Response
 {
-  "access":  "eyJ0eXAiOiJKV1QiL...",   # use this in Authorization header
-  "refresh": "eyJ0eXAiOiJKV1QiL..."    # use this to get a new access token
+  "access":  "eyJ0eXAiOiJKV1QiL...",   # use in Authorization header — expires 60min
+  "refresh": "eyJ0eXAiOiJKV1QiL..."    # use to get a new access token
 }
 
-# Refresh when access token expires (60 min lifetime)
+# Rotate when access token expires
 curl -X POST http://localhost:8080/api/token/refresh/ \
   -H "Content-Type: application/json" \
   -d '{"refresh": "your_refresh_token"}'
@@ -73,7 +88,7 @@ curl http://localhost:8080/api/v1/signals/ \
 | `GET` | `/api/v1/pulse/` | Topic sentiment summary — VADER compound scores, named entities, sentiment distribution per topic |
 | `GET` | `/api/v1/trending/` | Velocity-ranked trending signals — sorted by `trending_score`, filterable by platform and time window |
 | `GET` | `/api/v1/compare/` | Cross-platform divergence events — topics that surfaced on 2+ platforms with spread time and delta score |
-| `WS` | `ws://localhost:8080/signals/live/` | Real-time push stream — fires on every processing batch flush, no polling needed |
+| `WS` | `ws://localhost:8000/ws/signals/` | Real-time push stream — fires on every processing batch flush, no polling needed |
 | `POST` | `/api/token/` | Obtain JWT access + refresh tokens |
 | `POST` | `/api/token/refresh/` | Rotate access token using refresh token |
 | `GET` | `/health/` | Health check — no auth required |
@@ -224,11 +239,11 @@ GRAFANA_PASSWORD=admin
 ## Project structure
 
 ```
-apps/reddit/           Django app — models, serializers, views, URLs
-config/                Django settings, ASGI routing
-reddit_producer/       Ingestion, processing, topic aggregator
-reddit_dashboard_v3/   React dashboard
-signal_flow_v2.html    Interactive architecture diagram
+apps/reddit/              Django app — models, serializers, views, URLs
+config/                   Django settings, ASGI routing
+reddit_producer/          Ingestion, processing, topic aggregator
+  └── assets/             Grafana screenshots, architecture diagram
+reddit_dashboard_v3/      React dashboard
 Dockerfile.django
 requirements.txt
 ```
