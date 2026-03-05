@@ -70,7 +70,7 @@ function PostRow({ post, selected, onClick, prevScore }) {
           ▲{fmt(score)}{delta !== 0 && <span style={{ marginLeft: 2 }}>({delta > 0 ? "+" : ""}{delta})</span>}
         </span>
         <span>💬{fmt(post.current_comments)}</span>
-        <span>{ago(post.created_utc)}</span>
+        <span>{ago(post.first_seen_at || post.created_utc)}</span>
         <span style={{ marginLeft: "auto", color: "#2d3748" }}>{momentum.toFixed(1)}/min</span>
       </div>
     </div>
@@ -240,7 +240,9 @@ export default function PostsPage({ onCountChange }) {
       if (sortBy === "velocity")  return (b.score_velocity || 0) - (a.score_velocity || 0);
       if (sortBy === "trending")  return (b.trending_score || 0) - (a.trending_score || 0);
       if (sortBy === "sentiment") return getSentiment(b) - getSentiment(a);
-      if (sortBy === "new")       return new Date(b.created_utc) - new Date(a.created_utc);
+      // FIX: sort "new" by first_seen_at (ingestion time) not created_utc (Reddit publish time)
+      // Hot posts were published hours ago but just entered our polling window
+      if (sortBy === "new")       return new Date(b.first_seen_at || b.created_utc) - new Date(a.first_seen_at || a.created_utc);
       return 0;
     });
   }, [posts, subFilter, search, sortBy]);
@@ -404,7 +406,7 @@ export default function PostsPage({ onCountChange }) {
                       </td>
                       <td style={{ padding: "7px 10px", color: "#f6ad55", whiteSpace: "nowrap" }}>{(p.momentum||0).toFixed(2)}</td>
                       <td style={{ padding: "7px 10px", color: sentColor(sent), whiteSpace: "nowrap" }}>{sent.toFixed(2)}</td>
-                      <td style={{ padding: "7px 10px", color: "#4a5568", whiteSpace: "nowrap" }}>{ago(p.created_utc)}</td>
+                      <td style={{ padding: "7px 10px", color: "#4a5568", whiteSpace: "nowrap" }}>{ago(p.last_polled_at || p.first_seen_at || p.created_utc)}</td>
                     </tr>
                   );
                 })}

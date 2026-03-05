@@ -19,22 +19,39 @@ export const TIME_RANGES = [
   { label: "24h", hours: 24  },
 ];
 
-export const rangeToIso = (hours) => new Date(Date.now() - hours * 3600 * 1000).toISOString();
-const today   = () => new Date().toISOString().split("T")[0];
-const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().split("T")[0]; };
+export const rangeToIso = (hours) =>
+  new Date(Date.now() - hours * 3600 * 1000).toISOString();
 
-export const fetchPosts  = (cursor, hours = 24) =>
-  api.get(`/posts/?page_size=100${cursor ? `&cursor=${cursor}` : ""}`);
-export const fetchStats  = (days = 1) =>
+const today   = () => new Date().toISOString().split("T")[0];
+const daysAgo = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().split("T")[0];
+};
+
+// FIX: created_after is now actually appended to the query string
+// Previously: api.get(`/posts/?page_size=100`) — hours param ignored entirely
+export const fetchPosts = (cursor, hours = 24) =>
+  api.get(
+    `/posts/?page_size=100&created_after=${rangeToIso(hours)}` +
+    (cursor ? `&cursor=${cursor}` : "")
+  );
+
+export const fetchStats = (days = 1) =>
   api.get(`/stats/?start=${daysAgo(days - 1)}&end=${today()}`);
+
 export const fetchActivityTimeline = (hours = 24) =>
   api.get(`/stats/timeline/?hours=${hours}`).catch(() => ({ data: [] }));
+
 export const fetchKeywords = (hours = 6) =>
   api.get(`/stats/keywords/?hours=${hours}`).catch(() => ({ data: [] }));
+
 export const login = (username, password) =>
   api.post("/token/", { username, password });
 
 export default api;
+
+// ── Shared utils ──────────────────────────────────────────────────────────────
 
 export const fmt = n => {
   if (n == null) return "—";

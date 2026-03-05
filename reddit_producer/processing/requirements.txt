@@ -19,3 +19,7 @@ redis==5.0.1
 # Phase 2: async redis for channel layer publishing from the processing service
 redis[asyncio]==5.0.1
 
+
+# Phase 3: spaCy NER for topic extraction
+spacy>=3.7.0
+# After install run: python -m spacy download en_core_web_md

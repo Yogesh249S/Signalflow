@@ -1,62 +1,32 @@
 # =====================================================================
-# docker-compose.yml — Phase 2
+# docker-compose.yml — SignalFlow Phase 3 (local dev)
 # =====================================================================
-# Phase 1 changes (kept):
-#   - Redis properly integrated with healthcheck + env wiring
-#   - Kafka dual INTERNAL/EXTERNAL listeners
-#   - Postgres tuning (shared_buffers, work_mem)
-#   - Resource limits on all services
-#   - Dead-letter queue consumer
-#   - Prometheus + Grafana monitoring
-#
-# Phase 2 additions:
-#   1. KAFKA 3-BROKER CLUSTER (kafka, kafka2, kafka3)
-#      - replication_factor=3 on all topics (set in kafka-init)
-#      - min.insync.replicas=2 so one broker can be dead and writes succeed
-#      - Kafka controller quorum via KRaft (no Zookeeper) — replaced below
-#      NOTE: kept Zookeeper here for docker-compose simplicity; KRaft needs
-#      a CLUSTER_ID env and is better suited to k8s (Phase 4).
-#
-#   2. POSTGRES READ REPLICA (postgres-replica)
-#      - Streaming replication from the primary via wal_level=replica
-#      - POSTGRES_REPLICA_HOST env passed to Django / the processing service
-#      - Django DB router sends all SELECTs to this host
-#
-#   3. MULTI-REPLICA PROCESSING
-#      - `deploy.replicas: 3` replaces `container_name: reddit_processing`
-#        (named containers cannot scale)
-#      - Memory limit per replica reduced to 400m; 3 × 400m < single 512m cap
-#
-#   4. DAPHNE (ASGI server with WebSocket support)
-#      - Replaces gunicorn for the Django API
-#      - Serves both HTTP and WebSocket (ws://host/ws/posts/)
-#      - Django Channels routes WebSocket frames to PostFeedConsumer
+# Changes from previous version:
+#   - Added divergence-detector service
+#   - Added Dockerfiles for ingestion, processing, django
+#   - Updated kafka-init to create all platform topics
+#   - Removed apps.reddit references, now apps.signals
+#   - processing memory bumped 400m→600m for spaCy
+#   - Container names cleaned up to signalflow_*
+#   - Airflow kept (local only, commented note preserved)
 # =====================================================================
 
-version: "3.9"
-
-#Shared environment for all services that talk to Postgres 
 x-postgres-env: &postgres-env
   POSTGRES_DB:       reddit
   POSTGRES_USER:     reddit
   POSTGRES_PASSWORD: reddit
 
-#Shared Kafka broker template
 x-kafka-env: &kafka-env
-  KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
-  KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-  KAFKA_DEFAULT_REPLICATION_FACTOR: 3
-  KAFKA_MIN_INSYNC_REPLICAS: 2
+  KAFKA_ZOOKEEPER_CONNECT:                zookeeper:2181
+  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP:   INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+  KAFKA_INTER_BROKER_LISTENER_NAME:       INTERNAL
+  KAFKA_DEFAULT_REPLICATION_FACTOR:       3
+  KAFKA_MIN_INSYNC_REPLICAS:              2
   KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
-  KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
-  KAFKA_SOCKET_SEND_BUFFER_BYTES: 1048576
-  KAFKA_SOCKET_RECEIVE_BUFFER_BYTES: 1048576
-  KAFKA_MESSAGE_MAX_BYTES: 2097152
-
-
-
-
+  KAFKA_AUTO_CREATE_TOPICS_ENABLE:        "false"
+  KAFKA_SOCKET_SEND_BUFFER_BYTES:         1048576
+  KAFKA_SOCKET_RECEIVE_BUFFER_BYTES:      1048576
+  KAFKA_MESSAGE_MAX_BYTES:                2097152
 
 x-kafka-common: &kafka-common
   image: confluentinc/cp-kafka:7.5.0
@@ -76,7 +46,9 @@ x-kafka-common: &kafka-common
 
 services:
 
-  #  Zookeeper  
+  # ===================================================================
+  # ZOOKEEPER
+  # ===================================================================
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
@@ -90,47 +62,39 @@ services:
       retries:   5
 
 
-  #  Kafka broker 1 (primary — external port 29092)
+  # ===================================================================
+  # KAFKA BROKERS
+  # ===================================================================
   kafka:
     <<: *kafka-common
     container_name: kafka
-    ports:
-      - "9092:9092"
-      - "29092:29092"
+    ports: ["9092:9092", "29092:29092"]
     environment:
       <<: *kafka-env
-      KAFKA_BROKER_ID: 1
-      KAFKA_LISTENERS:           INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      KAFKA_BROKER_ID:            1
+      KAFKA_LISTENERS:            INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
 
-  # Kafka broker 2 
   kafka2:
     <<: *kafka-common
     container_name: kafka2
-    ports:
-      - "9093:9092"
+    ports: ["9093:9092"]
     environment:
       <<: *kafka-env
-      KAFKA_BROKER_ID: 2
-      KAFKA_LISTENERS:           INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      KAFKA_BROKER_ID:            2
+      KAFKA_LISTENERS:            INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka2:9092,EXTERNAL://localhost:9093
 
-  #Kafka broker 3
   kafka3:
     <<: *kafka-common
     container_name: kafka3
-    ports:
-      - "9094:9092"
+    ports: ["9094:9092"]
     environment:
       <<: *kafka-env
-      KAFKA_BROKER_ID: 3
-      KAFKA_LISTENERS:           INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      KAFKA_BROKER_ID:            3
+      KAFKA_LISTENERS:            INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka3:9092,EXTERNAL://localhost:9094
 
-
-  # Kafka topic initialiser
-  # Phase 2: replication-factor=3, partitions=3 on all topics.
-  # Increasing partitions to 6 in the future lets you scale past 3 replicas.
   kafka-init:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka_init
@@ -139,45 +103,28 @@ services:
       kafka2: { condition: service_healthy }
       kafka3: { condition: service_healthy }
     volumes:
-    - ./kafka-init.sh:/kafka-init.sh:ro
+      - ./kafka-init.sh:/kafka-init.sh:ro
     entrypoint: ["/bin/sh", "/kafka-init.sh"]
-    command: >
-      "
-      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists
-        --topic reddit.posts.raw     --replication-factor 3 --partitions 3;
-      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists
-        --topic reddit.posts.refresh --replication-factor 3 --partitions 3;
-      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists
-        --topic reddit.posts.dlq     --replication-factor 3 --partitions 1;
+    restart: "no"
 
-      echo 'Waiting for topics to be visible on all brokers...';
-      for topic in reddit.posts.raw reddit.posts.refresh reddit.posts.dlq; do
-        until kafka-topics --bootstrap-server kafka:9092,kafka2:9092,kafka3:9092
-                --describe --topic $$topic 2>/dev/null | grep -q 'ReplicationFactor: 3'; do
-          echo \"  waiting for $$topic...\";
-          sleep 2;
-        done;
-        echo \"  $$topic ready.\";
-      done;
-      echo 'All topics confirmed on all brokers.';
-      "
 
+  # ===================================================================
+  # POSTGRES PRIMARY
+  # ===================================================================
   postgres:
     image: timescale/timescaledb:latest-pg15
     container_name: postgres
     environment:
       <<: *postgres-env
-      POSTGRES_INITDB_ARGS: "--auth-host=trust --auth-local=trust"
       POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./pg_hba.conf:/pg_hba.conf:ro
       - ./storage/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-    ports:
-      - "5433:5432"
+    ports: ["5433:5432"]
     command: >
       postgres
-        -c hba_file=/pg_hba.conf  
+        -c hba_file=/pg_hba.conf
         -c shared_buffers=512MB
         -c work_mem=16MB
         -c max_connections=100
@@ -191,22 +138,20 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U reddit"]
       interval: 5s
-      timeout: 5s
-      retries: 10
+      timeout:  5s
+      retries:  10
     deploy:
       resources:
         limits:
           memory: 1g
 
 
+  # ===================================================================
+  # POSTGRES READ REPLICA
+  # ===================================================================
   postgres-replica:
     image: timescale/timescaledb:latest-pg15
     container_name: postgres_replica
-    # GUCs passed as the postgres binary arguments at the compose level.
-    # These are appended AFTER docker-entrypoint.sh runs initdb (skipped here
-    # because PGDATA already has PG_VERSION from pg_basebackup), so they are
-    # guaranteed to reach the postgres process — unlike -c flags buried inside
-    # a shell script where exec handoff swallows them before parsing.
     command: >
       postgres
         -c shared_buffers=256MB
@@ -214,15 +159,14 @@ services:
         -c max_connections=100
         -c hot_standby=on
     environment:
-      POSTGRES_USER:     reddit
-      POSTGRES_PASSWORD: reddit
-      POSTGRES_DB:       reddit
+      POSTGRES_USER:         reddit
+      POSTGRES_PASSWORD:     reddit
+      POSTGRES_DB:           reddit
       POSTGRES_PRIMARY_HOST: postgres
     volumes:
       - pg_replica_data:/var/lib/postgresql/data
       - ./replica-init.sh:/docker-entrypoint-initdb.d/00_replica_init.sh:ro
-    ports:
-      - "5434:5432"
+    ports: ["5434:5432"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -236,36 +180,18 @@ services:
         limits:
           memory: 512m
 
-  #  Schema migration runner
-  migrate:
-    build:
-      context: .
-      dockerfile: processing/Dockerfile
-    container_name: reddit_migrate
-    command: sh -c "sleep 20 && python -m storage.migrate"
-    env_file: .env
-    environment:
-      POSTGRES_HOST:     postgres
-      POSTGRES_PORT:     5432
-      POSTGRES_DB:       reddit
-      POSTGRES_USER:     reddit
-      POSTGRES_PASSWORD: reddit
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: "no"
 
-
-  # Redis
-  # Serves three roles in Phase 2:
-  #   DB 0 — velocity cache (used by all processing replicas)
-  #   DB 1 — Django cache backend (shared across Daphne workers)
-  #   DB 2 — Django Channels channel layer (WebSocket group messaging)
+  # ===================================================================
+  # REDIS
+  # DB 0 — velocity cache
+  # DB 1 — Django response cache
+  # DB 2 — Django Channels WebSocket channel layer
+  # DB 3 — normalised score rolling windows
+  # ===================================================================
   redis:
     image: redis:7-alpine
     container_name: redis
-    ports:
-      - "6379:6379"
+    ports: ["6379:6379"]
     command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -278,23 +204,41 @@ services:
           memory: 600m
 
 
-  #  Ingestion service
-  # Phase 2: now reads subreddit list from subreddit_config table instead of
-  # TOP_SUBREDDITS env var. Hot-reload on SIGHUP or DB poll (every 60 s).
+  # ===================================================================
+  # SCHEMA MIGRATION RUNNER
+  # ===================================================================
+  migrate:
+    build:
+      context: .
+      dockerfile: processing/Dockerfile
+    container_name: signalflow_migrate
+    command: python -m storage.migrate
+    environment:
+      <<: *postgres-env
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+
+  # ===================================================================
+  # INGESTION SERVICE
+  # All 4 sources run here — Reddit, HN, Bluesky, YouTube.
+  # Each auto-enables based on env vars present in .env
+  # ===================================================================
   ingestion:
     build:
       context: .
       dockerfile: ingestion/Dockerfile
-    container_name: reddit_ingestion
+    container_name: signalflow_ingestion
     env_file: .env
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092,kafka2:9092,kafka3:9092
       POSTGRES_HOST:           postgres
       POSTGRES_PORT:           5432
-      POSTGRES_DB:             reddit
-      POSTGRES_USER:           reddit
-      POSTGRES_PASSWORD:       reddit
-      SCHEDULER_CONFIG_POLL_S: "60"   # how often to check subreddit_config for changes
+      <<: *postgres-env
     depends_on:
       kafka-init: { condition: service_completed_successfully }
       migrate:    { condition: service_completed_successfully }
@@ -305,12 +249,11 @@ services:
           memory: 512m
 
 
-  #  Processing service 3 replicas
-  # Phase 2: `deploy.replicas: 3` enables horizontal scale.
-  #   - Kafka partition assignment (3 partitions) distributes load evenly.
-  #   - All replicas share the Redis velocity cache (DB 0) — safe concurrent writes.
-  #   - Each replica publishes to the Redis channel layer after each batch flush.
-  #   - container_name removed (named containers cannot scale).
+  # ===================================================================
+  # PROCESSING SERVICE — 3 replicas
+  # spaCy model baked into image at build time (en_core_web_md ~43MB)
+  # Memory bumped to 600m to accommodate spaCy
+  # ===================================================================
   processing:
     build:
       context: .
@@ -318,45 +261,102 @@ services:
     env_file: .env
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092,kafka2:9092,kafka3:9092
-      POSTGRES_HOST:     postgres
-      POSTGRES_PORT:     5432
-      REDIS_URL:         redis://redis:6379
-      METRICS_PORT:      "8000"
-      # Phase 2: after each batch flush, signal Django Channels via channel layer
-      CHANNEL_LAYER_URL: redis://redis:6379/2
-    ports:
-      - "8010-8012:8000"   # each replica gets a distinct host port for Prometheus scraping
+      POSTGRES_HOST:           postgres
+      POSTGRES_PORT:           5432
+      REDIS_URL:               redis://redis:6379
+      CHANNEL_LAYER_URL:       redis://redis:6379/2
+      METRICS_PORT:            "8000"
+      <<: *postgres-env
+    ports: ["8010-8012:8000"]
     depends_on:
-      kafka-init:       { condition: service_completed_successfully }
-      postgres:         { condition: service_healthy }
-      redis:            { condition: service_healthy }
-      migrate:          { condition: service_completed_successfully }
+      kafka-init: { condition: service_completed_successfully }
+      postgres:   { condition: service_healthy }
+      redis:      { condition: service_healthy }
+      migrate:    { condition: service_completed_successfully }
     restart: unless-stopped
     deploy:
       replicas: 3
       resources:
         limits:
-          memory: 400m
+          memory: 600m
       restart_policy:
         condition: on-failure
         delay: 5s
         max_attempts: 3
 
 
-  #  DLQ Consumer 
+  # ===================================================================
+  # DIVERGENCE DETECTOR (NEW — Phase 3)
+  # Runs every 15 min, detects cross-platform sentiment divergence,
+  # writes to platform_divergence table. Single instance only.
+  # Reuses processing/Dockerfile — same Python env, no extra image.
+  # ===================================================================
+  divergence-detector:
+    build:
+      context: .
+      dockerfile: processing/Dockerfile
+    container_name: signalflow_divergence
+    command: python -m processing.divergence_detector
+    env_file: .env
+    environment:
+      POSTGRES_HOST:               postgres
+      POSTGRES_PORT:               5432
+      DIVERGENCE_THRESHOLD:        "0.3"
+      DIVERGENCE_LOOKBACK_MINUTES: "60"
+      DIVERGENCE_DETECT_INTERVAL:  "900"
+      <<: *postgres-env
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate:  { condition: service_completed_successfully }
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  # ===================================================================
+  # TOPIC AGGREGATOR
+  # Consumes signals.normalised, writes to topic_timeseries,
+  # detects cross-platform events every 60s.
+  # ===================================================================
+  topic-aggregator:
+    build:
+      context: .
+      dockerfile: processing/Dockerfile
+    container_name: signalflow_topic_aggregator
+    command: python -m processing.topic_aggregator
+    env_file: .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS:      kafka:9092,kafka2:9092,kafka3:9092
+      POSTGRES_HOST:                postgres
+      POSTGRES_PORT:                5432
+      TOPIC_AGG_FLUSH_INTERVAL:     "60"
+      TOPIC_AGG_BUCKET_MINUTES:     "15"
+      <<: *postgres-env
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+      postgres:   { condition: service_healthy }
+      migrate:    { condition: service_completed_successfully }
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+  # ===================================================================
+  # DLQ CONSUMER
+  # ===================================================================
   dlq-consumer:
     build:
       context: .
       dockerfile: processing/Dockerfile
-    container_name: reddit_dlq
+    container_name: signalflow_dlq
     command: python -m processing.dlq_consumer
     env_file: .env
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092,kafka2:9092,kafka3:9092
-      REDIS_URL:     redis://redis:6379
-      DLQ_REPLAY_PORT: "8001"
-    ports:
-      - "8001:8001"
+      REDIS_URL:               redis://redis:6379
+      DLQ_REPLAY_PORT:         "8001"
+    ports: ["8001:8001"]
     depends_on:
       kafka-init: { condition: service_completed_successfully }
       redis:      { condition: service_healthy }
@@ -367,28 +367,26 @@ services:
           memory: 256m
 
 
-  # Django API (Daphne ASGI server)
-  # Phase 2: switched from gunicorn (WSGI) to daphne (ASGI).
-  #   - Daphne handles both HTTP requests and WebSocket connections.
-  #   - Django Channels uses the Redis channel layer (DB 2) to fan out
-  #     post-update messages to all connected WebSocket clients.
+  # ===================================================================
+  # DJANGO API (Daphne ASGI)
+  # Serves /api/v1/ + ws/posts/ + ws/signals/
+  # Built from Dockerfile.django at project root (one level up)
+  # ===================================================================
   django:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile.django
-    container_name: reddit_django
+    container_name: signalflow_django
     command: daphne -b 0.0.0.0 -p 8080 config.routing:application
     env_file: .env
     environment:
-      DJANGO_SETTINGS_MODULE:  config.settings
-      POSTGRES_HOST:           postgres
-      POSTGRES_PORT:           5432
-      POSTGRES_REPLICA_HOST:   postgres-replica
-      POSTGRES_REPLICA_PORT:   5432
-      REDIS_URL:               redis://redis:6379
-      DJANGO_ALLOWED_HOSTS:    "localhost,127.0.0.1,django"
-    ports:
-      - "8080:8080"
+      DJANGO_SETTINGS_MODULE: config.settings
+      POSTGRES_HOST:          postgres
+      POSTGRES_PORT:          5432
+      REDIS_URL:              redis://redis:6379
+      DJANGO_ALLOWED_HOSTS:   "localhost,127.0.0.1,django"
+      <<: *postgres-env
+    ports: ["8080:8080"]
     depends_on:
       postgres-replica: { condition: service_healthy }
       redis:            { condition: service_healthy }
@@ -400,13 +398,13 @@ services:
           memory: 512m
 
 
-  #  Prometheus 
-  # Phase 2: scrapes all 3 processing replicas (ports 8000–8002)
+  # ===================================================================
+  # PROMETHEUS
+  # ===================================================================
   prometheus:
     image: prom/prometheus:v2.47.0
     container_name: prometheus
-    ports:
-      - "9090:9090"
+    ports: ["9090:9090"]
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -415,8 +413,7 @@ services:
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=15d"
       - "--web.enable-lifecycle"
-    depends_on:
-      - processing
+    depends_on: [processing]
     restart: unless-stopped
     deploy:
       resources:
@@ -424,22 +421,22 @@ services:
           memory: 512m
 
 
-  #Grafana
+  # ===================================================================
+  # GRAFANA
+  # ===================================================================
   grafana:
     image: grafana/grafana:10.1.0
     container_name: grafana
-    ports:
-      - "3000:3000"
+    ports: ["5000:3000"]
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
-      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SECURITY_ADMIN_PASSWORD:            ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP:                "false"
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/processing.json
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
-    depends_on:
-      - prometheus
+    depends_on: [prometheus]
     restart: unless-stopped
     deploy:
       resources:
@@ -447,8 +444,92 @@ services:
           memory: 256m
 
 
+  # ===================================================================
+  # AIRFLOW DB INIT — one-shot
+  # NOTE: Airflow only runs locally — t3.small does not have enough RAM.
+  # ===================================================================
+  airflow-db-init:
+    image: timescale/timescaledb:latest-pg15
+    container_name: airflow_db_init
+    command:
+      - bash
+      - -c
+      - |
+        until pg_isready -h postgres -U reddit; do sleep 1; done;
+        psql -h postgres -U reddit -c \
+          "SELECT 1 FROM pg_database WHERE datname = 'airflow'" | grep -q 1 \
+          && echo 'airflow db exists' \
+          || psql -h postgres -U reddit -c 'CREATE DATABASE airflow;';
+    environment:
+      PGPASSWORD: reddit
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+
+  # ===================================================================
+  # AIRFLOW — nightly TimescaleDB → S3 archival (local dev only)
+  #
+  # Create admin user after first up:
+  #   docker exec -it signalflow_airflow airflow users create \
+  #     --username admin --password admin \
+  #     --firstname Admin --lastname Admin \
+  #     --role Admin --email admin@localhost
+  #
+  # UI: http://localhost:8888
+  # ===================================================================
+  airflow:
+    image: apache/airflow:2.8.1-python3.11
+    container_name: signalflow_airflow
+    command:
+      - bash
+      - -c
+      - |
+        pip install psycopg2-binary pyarrow pandas boto3 --quiet
+        airflow db upgrade
+        airflow users create \
+          --username admin --password admin \
+          --firstname Admin --lastname Admin \
+          --role Admin --email admin@localhost || true
+        airflow scheduler &
+        airflow webserver --port 8888
+    env_file: .env
+    environment:
+      AIRFLOW__CORE__EXECUTOR:             LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES:        "false"
+      AIRFLOW__CORE__DAGS_FOLDER:          /opt/airflow/dags
+      AIRFLOW__CORE__DEFAULT_TIMEZONE:     UTC
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://reddit:reddit@postgres:5432/airflow
+      AIRFLOW__WEBSERVER__WEB_SERVER_PORT: "8888"
+      AIRFLOW__WEBSERVER__SECRET_KEY:      "signalflow-airflow-dev-key-change-in-prod"
+      POSTGRES_HOST:     postgres
+      POSTGRES_PORT:     "5432"
+      <<: *postgres-env
+    volumes:
+      - ./dags:/opt/airflow/dags:ro
+      - airflow_data:/opt/airflow/logs
+    ports: ["8888:8888"]
+    depends_on:
+      postgres:        { condition: service_healthy }
+      airflow-db-init: { condition: service_completed_successfully }
+      migrate:         { condition: service_completed_successfully }
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 800m
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
+      interval: 30s
+      timeout:  10s
+      retries:  5
+      start_period: 90s
+
+
 volumes:
   pg_data:
   pg_replica_data:
   prometheus_data:
   grafana_data:
+  airflow_data:

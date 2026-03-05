@@ -1,0 +1,99 @@
+version: 2
+
+models:
+  - name: stg_posts
+    description: Cleaned active posts — filtered, cast, and enriched with derived columns
+    columns:
+      - name: post_id
+        tests: [unique, not_null]
+      - name: score_velocity
+        tests: [not_null]
+      - name: comment_velocity
+        tests: [not_null]
+      - name: trending_score
+        tests: [not_null]
+      - name: poll_priority
+        tests:
+          - accepted_values:
+              values: ["aggressive", "normal", "slow", "inactive"]
+
+  - name: stg_metrics_history
+    description: Cleaned time-series snapshots from the TimescaleDB hypertable
+    columns:
+      - name: post_id
+        tests: [not_null]
+      - name: recorded_at
+        tests: [not_null]
+      - name: score
+        tests: [not_null]
+
+  - name: stg_nlp_features
+    description: Cleaned NLP features — sentiment and keywords per post
+    columns:
+      - name: post_id
+        tests: [unique, not_null]
+      - name: sentiment_label
+        tests:
+          - accepted_values:
+              values: ["positive", "negative", "neutral"]
+
+  - name: dim_posts
+    description: >
+      One enriched row per active Reddit post.
+      Joins posts with NLP features. Includes derived engagement and momentum scores.
+    columns:
+      - name: post_id
+        tests: [unique, not_null]
+      - name: subreddit_id
+        tests: [not_null]
+      - name: sentiment_label
+        tests:
+          - accepted_values:
+              values: ["positive", "negative", "neutral"]
+      - name: age_bucket
+        tests:
+          - accepted_values:
+              values: ["under_1h", "1h_to_6h", "6h_to_12h", "12h_to_24h", "over_24h"]
+
+  - name: dim_subreddits
+    description: >
+      One row per subreddit with aggregated performance stats.
+      Answers: which subreddits produce the most trending content?
+    columns:
+      - name: subreddit_id
+        tests: [unique, not_null]
+      - name: signal_tier
+        tests:
+          - accepted_values:
+              values: ["high_signal", "medium_signal", "low_signal"]
+
+  - name: fct_post_lifecycle
+    description: >
+      One row per post capturing full lifecycle: time to trend, peak engagement,
+      and whether initial sentiment correlated with trending outcome.
+    columns:
+      - name: post_id
+        tests: [unique, not_null]
+      - name: sentiment_bucket
+        tests:
+          - accepted_values:
+              values: ["strongly_positive", "mildly_positive", "neutral",
+                       "mildly_negative", "strongly_negative"]
+
+  - name: fct_hourly_engagement
+    description: >
+      Hourly rollup per subreddit. Documented, tested equivalent of the
+      TimescaleDB continuous aggregate with added sentiment context.
+    columns:
+      - name: subreddit_id
+        tests: [not_null]
+      - name: recorded_hour
+        tests: [not_null]
+
+  - name: fct_sentiment_vs_velocity
+    description: >
+      Core analytical model. Joins initial post sentiment with velocity
+      at 1h, 3h, 6h intervals. Answers: does initial sentiment predict velocity?
+    columns:
+      - name: post_id
+        tests: [unique, not_null]

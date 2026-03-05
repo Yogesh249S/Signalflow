@@ -1,0 +1,1524 @@
+[0m17:48:56.454759 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fd7c31bffb0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fd7c30486e0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fd7c31bdaf0>]}
+
+
+============================== 17:48:56.504928 | ed5fae72-d78b-49ce-8950-18013fc0c788 ==============================
+[0m17:48:56.504928 [info ] [MainThread]: Running with dbt=1.11.6
+[0m17:48:56.507902 [debug] [MainThread]: running dbt with arguments {'partial_parse': 'True', 'version_check': 'True', 'use_experimental_parser': 'False', 'empty': 'None', 'invocation_command': 'dbt debug', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'use_colors': 'True', 'write_json': 'True', 'debug': 'False', 'cache_selected_only': 'False', 'profiles_dir': '.', 'log_format': 'default', 'target_path': 'None', 'warn_error': 'None', 'quiet': 'False', 'no_print': 'None', 'introspect': 'True', 'log_path': '/mnt/c/users/gusmc/downloads/xyz/Reddit_signalflow/dbt_signalflow_v2/logs', 'printer_width': '80', 'log_cache_events': 'False', 'send_anonymous_usage_stats': 'True', 'static_parser': 'True', 'fail_fast': 'False', 'indirect_selection': 'eager'}
+[0m17:48:57.637555 [info ] [MainThread]: dbt version: 1.11.6
+[0m17:48:57.639706 [info ] [MainThread]: python version: 3.12.3
+[0m17:48:57.643101 [info ] [MainThread]: python path: /mnt/c/Users/gusmc/Downloads/xyz/venv/bin/python3
+[0m17:48:57.645432 [info ] [MainThread]: os info: Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.39
+[0m17:48:59.011894 [info ] [MainThread]: Using profiles dir at .
+[0m17:48:59.015560 [info ] [MainThread]: Using profiles.yml file at ./profiles.yml
+[0m17:48:59.018972 [info ] [MainThread]: Using dbt_project.yml file at /mnt/c/users/gusmc/downloads/xyz/Reddit_signalflow/dbt_signalflow_v2/dbt_project.yml
+[0m17:48:59.077377 [info ] [MainThread]: adapter type: postgres
+[0m17:48:59.080650 [info ] [MainThread]: adapter version: 1.10.0
+[0m17:48:59.781915 [info ] [MainThread]: Configuration:
+[0m17:48:59.789767 [info ] [MainThread]:   profiles.yml file [[32mOK found and valid[0m]
+[0m17:48:59.798182 [info ] [MainThread]:   dbt_project.yml file [[32mOK found and valid[0m]
+[0m17:48:59.801922 [info ] [MainThread]: Required dependencies:
+[0m17:48:59.805488 [debug] [MainThread]: Executing "git --help"
+[0m17:48:59.854195 [debug] [MainThread]: STDOUT: "b"usage: git [-v | --version] [-h | --help] [-C <path>] [-c <name>=<value>]\n           [--exec-path[=<path>]] [--html-path] [--man-path] [--info-path]\n           [-p | --paginate | -P | --no-pager] [--no-replace-objects] [--bare]\n           [--git-dir=<path>] [--work-tree=<path>] [--namespace=<name>]\n           [--config-env=<name>=<envvar>] <command> [<args>]\n\nThese are common Git commands used in various situations:\n\nstart a working area (see also: git help tutorial)\n   clone     Clone a repository into a new directory\n   init      Create an empty Git repository or reinitialize an existing one\n\nwork on the current change (see also: git help everyday)\n   add       Add file contents to the index\n   mv        Move or rename a file, a directory, or a symlink\n   restore   Restore working tree files\n   rm        Remove files from the working tree and from the index\n\nexamine the history and state (see also: git help revisions)\n   bisect    Use binary search to find the commit that introduced a bug\n   diff      Show changes between commits, commit and working tree, etc\n   grep      Print lines matching a pattern\n   log       Show commit logs\n   show      Show various types of objects\n   status    Show the working tree status\n\ngrow, mark and tweak your common history\n   branch    List, create, or delete branches\n   commit    Record changes to the repository\n   merge     Join two or more development histories together\n   rebase    Reapply commits on top of another base tip\n   reset     Reset current HEAD to the specified state\n   switch    Switch branches\n   tag       Create, list, delete or verify a tag object signed with GPG\n\ncollaborate (see also: git help workflows)\n   fetch     Download objects and refs from another repository\n   pull      Fetch from and integrate with another repository or a local branch\n   push      Update remote refs along with associated objects\n\n'git help -a' and 'git help -g' list available subcommands and some\nconcept guides. See 'git help <command>' or 'git help <concept>'\nto read about a specific subcommand or concept.\nSee 'git help git' for an overview of the system.\n""
+[0m17:48:59.857504 [debug] [MainThread]: STDERR: "b''"
+[0m17:48:59.860178 [info ] [MainThread]:  - git [[32mOK found[0m]
+
+[0m17:48:59.862925 [info ] [MainThread]: Connection:
+[0m17:48:59.865897 [info ] [MainThread]:   host: localhost
+[0m17:48:59.868780 [info ] [MainThread]:   port: 5433
+[0m17:48:59.872078 [info ] [MainThread]:   user: reddit
+[0m17:48:59.880481 [info ] [MainThread]:   database: reddit
+[0m17:48:59.883358 [info ] [MainThread]:   schema: public
+[0m17:48:59.886084 [info ] [MainThread]:   connect_timeout: 10
+[0m17:48:59.888712 [info ] [MainThread]:   role: None
+[0m17:48:59.891632 [info ] [MainThread]:   search_path: None
+[0m17:48:59.894590 [info ] [MainThread]:   keepalives_idle: 0
+[0m17:48:59.897408 [info ] [MainThread]:   sslmode: None
+[0m17:48:59.900241 [info ] [MainThread]:   sslcert: None
+[0m17:48:59.903538 [info ] [MainThread]:   sslkey: None
+[0m17:48:59.905953 [info ] [MainThread]:   sslrootcert: None
+[0m17:48:59.908486 [info ] [MainThread]:   application_name: dbt
+[0m17:48:59.911715 [info ] [MainThread]:   retries: 1
+[0m17:48:59.918857 [info ] [MainThread]: Registered adapter: postgres=1.10.0
+[0m17:49:19.235384 [debug] [MainThread]: Acquiring new postgres connection 'debug'
+[0m17:49:32.757239 [debug] [MainThread]: Using postgres connection "debug"
+[0m17:49:32.759407 [debug] [MainThread]: On debug: select 1 as id
+[0m17:49:32.761164 [debug] [MainThread]: Opening a new connection, currently in state init
+[0m17:49:32.899999 [debug] [MainThread]: SQL status: SELECT 1 in 0.139 seconds
+[0m17:49:32.903829 [debug] [MainThread]: On debug: Close
+[0m17:49:32.906353 [info ] [MainThread]:   Connection test: [[32mOK connection ok[0m]
+
+[0m17:49:32.910571 [info ] [MainThread]: [32mAll checks passed![0m
+[0m17:49:32.919786 [debug] [MainThread]: Resource report: {"command_name": "debug", "command_success": true, "command_wall_clock_time": 41.1782, "process_in_blocks": "40088", "process_kernel_time": 5.506941, "process_mem_max_rss": "112548", "process_out_blocks": "0", "process_user_time": 5.966705}
+[0m17:49:32.922617 [debug] [MainThread]: Command `dbt debug` succeeded at 17:49:32.922281 after 41.18 seconds
+[0m17:49:32.924534 [debug] [MainThread]: Connection 'debug' was properly closed.
+[0m17:49:32.926200 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fd7c2a9e900>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fd7c29e1880>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fd7c2687fb0>]}
+[0m17:49:32.928780 [debug] [MainThread]: Flushing usage events
+[0m17:49:35.029004 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m17:50:18.145313 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e3ade6c0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e585cad0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e41706b0>]}
+
+
+============================== 17:50:18.177972 | c70f4161-2c49-4be6-ab42-834d16f04131 ==============================
+[0m17:50:18.177972 [info ] [MainThread]: Running with dbt=1.11.6
+[0m17:50:18.181172 [debug] [MainThread]: running dbt with arguments {'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'fail_fast': 'False', 'no_print': 'None', 'log_cache_events': 'False', 'cache_selected_only': 'False', 'quiet': 'False', 'printer_width': '80', 'static_parser': 'True', 'use_experimental_parser': 'False', 'profiles_dir': '.', 'send_anonymous_usage_stats': 'True', 'use_colors': 'True', 'version_check': 'True', 'log_format': 'default', 'warn_error': 'None', 'introspect': 'True', 'invocation_command': 'dbt run', 'empty': 'False', 'debug': 'False', 'write_json': 'True', 'partial_parse': 'True', 'target_path': 'None', 'log_path': '/mnt/c/users/gusmc/downloads/xyz/Reddit_signalflow/dbt_signalflow_v2/logs', 'indirect_selection': 'eager'}
+[0m17:50:22.481948 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': 'c70f4161-2c49-4be6-ab42-834d16f04131', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e2935f70>]}
+[0m17:50:22.870071 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'adapter_info', 'label': 'c70f4161-2c49-4be6-ab42-834d16f04131', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e5b5f350>]}
+[0m17:50:22.914194 [info ] [MainThread]: Registered adapter: postgres=1.10.0
+[0m17:50:40.045586 [debug] [MainThread]: checksum: ec27062d18352e9cfca161c166fcc73d2201661a23a3cf3c89196a27f32cfcb8, vars: {}, profile: , target: , version: 1.11.6
+[0m17:50:40.063484 [info ] [MainThread]: Unable to do partial parsing because saved manifest not found. Starting full parse.
+[0m17:50:40.065469 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'partial_parser', 'label': 'c70f4161-2c49-4be6-ab42-834d16f04131', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e2937a40>]}
+[0m17:50:52.325423 [warn ] [MainThread]: [[33mWARNING[0m][MissingArgumentsPropertyInGenericTestDeprecation]: Deprecated
+functionality
+Found top-level arguments to test `accepted_values` defined on 'stg_posts' in
+package 'signalflow' (models/schema.yml). Arguments to generic tests should be
+nested under the `arguments` property.
+[0m17:50:52.328284 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'deprecation', 'label': 'c70f4161-2c49-4be6-ab42-834d16f04131', 'property_': 'warn', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e1dca720>]}
+[0m17:50:53.576933 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'load_project', 'label': 'c70f4161-2c49-4be6-ab42-834d16f04131', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e0d90d10>]}
+[0m17:50:53.936418 [debug] [MainThread]: Wrote artifact WritableManifest to /mnt/c/users/gusmc/downloads/xyz/Reddit_signalflow/dbt_signalflow_v2/target/manifest.json
+[0m17:50:54.009266 [debug] [MainThread]: Wrote artifact SemanticManifest to /mnt/c/users/gusmc/downloads/xyz/Reddit_signalflow/dbt_signalflow_v2/target/semantic_manifest.json
+[0m17:50:54.654998 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'resource_counts', 'label': 'c70f4161-2c49-4be6-ab42-834d16f04131', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e0129d30>]}
+[0m17:50:54.657337 [info ] [MainThread]: Found 8 models, 47 data tests, 5 sources, 464 macros
+[0m17:50:54.659686 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': 'c70f4161-2c49-4be6-ab42-834d16f04131', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e01495e0>]}
+[0m17:50:54.667923 [info ] [MainThread]: 
+[0m17:50:54.670244 [info ] [MainThread]: Concurrency: 4 threads (target='dev')
+[0m17:50:54.673014 [info ] [MainThread]: 
+[0m17:50:54.675513 [debug] [MainThread]: Acquiring new postgres connection 'master'
+[0m17:50:54.686690 [debug] [ThreadPool]: Acquiring new postgres connection 'list_reddit'
+[0m17:50:54.688657 [debug] [ThreadPool]: Acquiring new postgres connection 'list_reddit'
+[0m17:51:01.120744 [debug] [ThreadPool]: Using postgres connection "list_reddit"
+[0m17:51:01.122612 [debug] [ThreadPool]: Using postgres connection "list_reddit"
+[0m17:51:01.126442 [debug] [ThreadPool]: On list_reddit: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "connection_name": "list_reddit"} */
+
+    select distinct nspname from pg_namespace
+  
+[0m17:51:01.129223 [debug] [ThreadPool]: On list_reddit: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "connection_name": "list_reddit"} */
+
+    select distinct nspname from pg_namespace
+  
+[0m17:51:01.133448 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m17:51:01.135751 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m17:51:01.288400 [debug] [ThreadPool]: SQL status: SELECT 31 in 0.153 seconds
+[0m17:51:01.290334 [debug] [ThreadPool]: SQL status: SELECT 31 in 0.157 seconds
+[0m17:51:01.294630 [debug] [ThreadPool]: On list_reddit: Close
+[0m17:51:01.300599 [debug] [ThreadPool]: On list_reddit: Close
+[0m17:51:01.315477 [debug] [ThreadPool]: Re-using an available connection from the pool (formerly list_reddit, now list_reddit_public_analytics)
+[0m17:51:01.317527 [debug] [ThreadPool]: Re-using an available connection from the pool (formerly list_reddit, now list_reddit_public_staging)
+[0m17:51:01.337811 [debug] [ThreadPool]: Using postgres connection "list_reddit_public_analytics"
+[0m17:51:01.343918 [debug] [ThreadPool]: Using postgres connection "list_reddit_public_staging"
+[0m17:51:01.346393 [debug] [ThreadPool]: On list_reddit_public_analytics: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "connection_name": "list_reddit_public_analytics"} */
+select
+      'reddit' as database,
+      tablename as name,
+      schemaname as schema,
+      'table' as type
+    from pg_tables
+    where schemaname ilike 'public_analytics'
+    union all
+    select
+      'reddit' as database,
+      viewname as name,
+      schemaname as schema,
+      'view' as type
+    from pg_views
+    where schemaname ilike 'public_analytics'
+    union all
+    select
+      'reddit' as database,
+      matviewname as name,
+      schemaname as schema,
+      'materialized_view' as type
+    from pg_matviews
+    where schemaname ilike 'public_analytics'
+  
+[0m17:51:01.348820 [debug] [ThreadPool]: On list_reddit_public_staging: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "connection_name": "list_reddit_public_staging"} */
+select
+      'reddit' as database,
+      tablename as name,
+      schemaname as schema,
+      'table' as type
+    from pg_tables
+    where schemaname ilike 'public_staging'
+    union all
+    select
+      'reddit' as database,
+      viewname as name,
+      schemaname as schema,
+      'view' as type
+    from pg_views
+    where schemaname ilike 'public_staging'
+    union all
+    select
+      'reddit' as database,
+      matviewname as name,
+      schemaname as schema,
+      'materialized_view' as type
+    from pg_matviews
+    where schemaname ilike 'public_staging'
+  
+[0m17:51:01.351247 [debug] [ThreadPool]: Opening a new connection, currently in state closed
+[0m17:51:01.354100 [debug] [ThreadPool]: Opening a new connection, currently in state closed
+[0m17:51:01.446019 [debug] [ThreadPool]: SQL status: SELECT 3 in 0.092 seconds
+[0m17:51:01.447243 [debug] [ThreadPool]: SQL status: SELECT 5 in 0.096 seconds
+[0m17:51:01.452949 [debug] [ThreadPool]: On list_reddit_public_staging: ROLLBACK
+[0m17:51:01.458816 [debug] [ThreadPool]: On list_reddit_public_analytics: ROLLBACK
+[0m17:51:01.463347 [debug] [ThreadPool]: On list_reddit_public_staging: Close
+[0m17:51:01.466300 [debug] [ThreadPool]: On list_reddit_public_analytics: Close
+[0m17:51:01.496599 [debug] [MainThread]: Using postgres connection "master"
+[0m17:51:01.499220 [debug] [MainThread]: On master: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "connection_name": "master"} */
+select distinct
+        dependent_namespace.nspname as dependent_schema,
+        dependent_class.relname as dependent_name,
+        referenced_namespace.nspname as referenced_schema,
+        referenced_class.relname as referenced_name
+
+    -- Query for views: views are entries in pg_class with an entry in pg_rewrite, but we avoid
+    -- a seq scan on pg_rewrite by leveraging the fact there is an "internal" row in pg_depend for
+    -- the view...
+    from pg_class as dependent_class
+    join pg_namespace as dependent_namespace on dependent_namespace.oid = dependent_class.relnamespace
+    join pg_depend as dependent_depend on dependent_depend.refobjid = dependent_class.oid
+        and dependent_depend.classid = 'pg_rewrite'::regclass
+        and dependent_depend.refclassid = 'pg_class'::regclass
+        and dependent_depend.deptype = 'i'
+
+    -- ... and via pg_depend (that has a row per column, hence the need for "distinct" above, and
+    -- making sure to exclude the internal row to avoid a view appearing to depend on itself)...
+    join pg_depend as joining_depend on joining_depend.objid = dependent_depend.objid
+        and joining_depend.classid = 'pg_rewrite'::regclass
+        and joining_depend.refclassid = 'pg_class'::regclass
+        and joining_depend.refobjid != dependent_depend.refobjid
+
+    -- ... we can find the tables they query from in pg_class, but excluding system tables. Note we
+    -- don't need need to exclude _dependent_ system tables, because they only query from other
+    -- system tables, and so are automatically excluded by excluding _referenced_ system tables
+    join pg_class as referenced_class on referenced_class.oid = joining_depend.refobjid
+    join pg_namespace as referenced_namespace on referenced_namespace.oid = referenced_class.relnamespace
+        and referenced_namespace.nspname != 'information_schema'
+        and referenced_namespace.nspname not like 'pg\_%'
+
+    order by
+        dependent_schema, dependent_name, referenced_schema, referenced_name;
+[0m17:51:01.501856 [debug] [MainThread]: Opening a new connection, currently in state init
+[0m17:51:01.622183 [debug] [MainThread]: SQL status: SELECT 50 in 0.120 seconds
+[0m17:51:01.630167 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': 'c70f4161-2c49-4be6-ab42-834d16f04131', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e0dfffe0>]}
+[0m17:51:01.633318 [debug] [MainThread]: On master: ROLLBACK
+[0m17:51:01.637230 [debug] [MainThread]: On master: COMMIT
+[0m17:51:01.639870 [debug] [MainThread]: Using postgres connection "master"
+[0m17:51:01.642292 [debug] [MainThread]: On master: COMMIT
+[0m17:51:01.646652 [debug] [MainThread]: SQL status: COMMIT in 0.002 seconds
+[0m17:51:01.649733 [debug] [MainThread]: On master: Close
+[0m17:51:01.673444 [debug] [Thread-1 (]: Began running node model.signalflow.stg_metrics_history
+[0m17:51:01.675863 [debug] [Thread-2 (]: Began running node model.signalflow.stg_nlp_features
+[0m17:51:01.678185 [debug] [Thread-3 (]: Began running node model.signalflow.stg_posts
+[0m17:51:01.681829 [info ] [Thread-1 (]: 1 of 8 START sql view model public_staging.stg_metrics_history ................. [RUN]
+[0m17:51:01.686941 [info ] [Thread-2 (]: 2 of 8 START sql view model public_staging.stg_nlp_features .................... [RUN]
+[0m17:51:01.690676 [info ] [Thread-3 (]: 3 of 8 START sql view model public_staging.stg_posts ........................... [RUN]
+[0m17:51:01.693613 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly list_reddit_public_analytics, now model.signalflow.stg_metrics_history)
+[0m17:51:01.696122 [debug] [Thread-2 (]: Re-using an available connection from the pool (formerly list_reddit_public_staging, now model.signalflow.stg_nlp_features)
+[0m17:51:01.699064 [debug] [Thread-3 (]: Acquiring new postgres connection 'model.signalflow.stg_posts'
+[0m17:51:01.702326 [debug] [Thread-1 (]: Began compiling node model.signalflow.stg_metrics_history
+[0m17:51:01.705761 [debug] [Thread-2 (]: Began compiling node model.signalflow.stg_nlp_features
+[0m17:51:01.708487 [debug] [Thread-3 (]: Began compiling node model.signalflow.stg_posts
+[0m17:51:01.748437 [debug] [Thread-2 (]: Writing injected SQL for node "model.signalflow.stg_nlp_features"
+[0m17:51:01.746179 [debug] [Thread-1 (]: Writing injected SQL for node "model.signalflow.stg_metrics_history"
+[0m17:51:01.761994 [debug] [Thread-3 (]: Writing injected SQL for node "model.signalflow.stg_posts"
+[0m17:51:01.798485 [debug] [Thread-3 (]: Began executing node model.signalflow.stg_posts
+[0m17:51:01.813087 [debug] [Thread-1 (]: Began executing node model.signalflow.stg_metrics_history
+[0m17:51:01.835485 [debug] [Thread-2 (]: Began executing node model.signalflow.stg_nlp_features
+[0m17:51:02.161787 [debug] [Thread-3 (]: Writing runtime sql for node "model.signalflow.stg_posts"
+[0m17:51:02.166052 [debug] [Thread-2 (]: Writing runtime sql for node "model.signalflow.stg_nlp_features"
+[0m17:51:02.170591 [debug] [Thread-1 (]: Writing runtime sql for node "model.signalflow.stg_metrics_history"
+[0m17:51:02.217492 [debug] [Thread-2 (]: Using postgres connection "model.signalflow.stg_nlp_features"
+[0m17:51:02.221406 [debug] [Thread-2 (]: On model.signalflow.stg_nlp_features: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.stg_nlp_features"} */
+
+  create view "reddit"."public_staging"."stg_nlp_features__dbt_tmp"
+    
+    
+  as (
+    -- stg_nlp_features.sql
+-- Thin wrapper over post_nlp_features.
+-- Responsibilities:
+--   - Coalesce nulls (topic_cluster is never populated per known gap in README)
+--   - Cast sentiment_score to float
+--   - Convert keywords JSONB to a cleaner text representation
+-- Materialised as VIEW.
+
+with source as (
+    select * from "reddit"."public"."post_nlp_features"
+),
+
+cleaned as (
+    select
+        post_id,
+
+        -- VADER compound score: -1.0 (most negative) to +1.0 (most positive)
+        coalesce(sentiment_score, 0.0)::float           as sentiment_score,
+
+        -- derive sentiment label from score since schema has no label column
+        case
+            when coalesce(sentiment_score, 0) >=  0.05 then 'positive'
+            when coalesce(sentiment_score, 0) <= -0.05 then 'negative'
+            else 'neutral'
+        end                                             as sentiment_label,
+
+        -- keywords stored as JSONB array
+        coalesce(keywords::text, '[]')                  as keywords_raw,
+        coalesce(jsonb_array_length(keywords), 0)       as keyword_count,
+
+        -- topic_cluster is int in real schema (null = not yet assigned)
+        topic_cluster::text                             as topic_cluster
+
+    from source
+    where post_id is not null
+)
+
+select * from cleaned
+  );
+[0m17:51:02.224076 [debug] [Thread-1 (]: Using postgres connection "model.signalflow.stg_metrics_history"
+[0m17:51:02.227256 [debug] [Thread-2 (]: Opening a new connection, currently in state closed
+[0m17:51:02.230407 [debug] [Thread-3 (]: Using postgres connection "model.signalflow.stg_posts"
+[0m17:51:02.232433 [debug] [Thread-1 (]: On model.signalflow.stg_metrics_history: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.stg_metrics_history"} */
+
+  create view "reddit"."public_staging"."stg_metrics_history__dbt_tmp"
+    
+    
+  as (
+    -- stg_metrics_history.sql
+-- Thin wrapper over post_metrics_history hypertable.
+-- Responsibilities:
+--   - Ensure timestamps are UTC-aware
+--   - Filter out any rows with null velocity (data quality guard)
+--   - Rename columns consistently
+--   - Add date/hour truncations for easier downstream aggregation
+-- Materialised as VIEW — the hypertable handles performance via chunk exclusion.
+
+with source as (
+    select * from "reddit"."public"."post_metrics_history"
+),
+
+cleaned as (
+    select
+        -- time dimension — hypertable partition key
+        captured_at                                     as recorded_at,
+        date_trunc('hour', captured_at)                 as recorded_hour,
+        date_trunc('day',  captured_at)::date           as recorded_date,
+
+        -- identity
+        post_id,
+
+        -- point-in-time snapshot values
+        coalesce(score, 0)                              as score,
+        coalesce(num_comments, 0)                       as num_comments,
+        coalesce(upvote_ratio, 0.0)                     as upvote_ratio
+
+    from source
+    where captured_at is not null
+      and score is not null
+)
+
+select * from cleaned
+  );
+[0m17:51:02.240170 [debug] [Thread-3 (]: On model.signalflow.stg_posts: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.stg_posts"} */
+
+  create view "reddit"."public_staging"."stg_posts__dbt_tmp"
+    
+    
+  as (
+    -- stg_posts.sql
+-- Thin wrapper over the raw posts table.
+-- Responsibilities:
+--   - Filter to active posts only (inactive = no longer polled)
+--   - Cast and rename columns to consistent snake_case analytic naming
+--   - Coalesce nulls on velocity columns (new posts have no velocity yet)
+--   - Compute derived column: age_hours since first_seen_at
+-- Materialised as VIEW so it always reflects the latest upserted state.
+
+with source as (
+    select * from "reddit"."public"."posts"
+),
+
+cleaned as (
+    select
+        -- identity
+        id                                              as post_id,
+        title,
+        author,
+        subreddit_id,
+        created_utc,
+
+        -- engagement metrics (latest values — upserted on every refresh)
+        current_score                                   as score,
+        current_comments                                as num_comments,
+        coalesce(current_ratio, 0.0)                    as upvote_ratio,
+
+        -- velocity — upvotes/comments per second since last refresh
+        coalesce(score_velocity,   0.0)                 as score_velocity,
+        coalesce(comment_velocity, 0.0)                 as comment_velocity,
+        coalesce(velocity, 0.0)                         as combined_velocity,
+
+        -- trending signals
+        coalesce(trending_score, 0.0)                   as trending_score,
+        coalesce(is_trending, false)                    as is_trending,
+
+        -- lifecycle
+        poll_priority,
+        first_seen_at,
+        last_polled_at,
+
+        -- derived: how old is this post in hours since it was created on Reddit
+        extract(epoch from (now() - created_utc)) / 3600.0      as age_hours,
+
+        -- derived: how long have we been tracking it
+        extract(epoch from (
+            coalesce(last_polled_at, now()) - first_seen_at
+        )) / 3600.0                                     as hours_polled
+
+    from source
+    where is_active = true
+)
+
+select * from cleaned
+  );
+[0m17:51:02.248951 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m17:51:02.255821 [debug] [Thread-3 (]: Opening a new connection, currently in state init
+[0m17:51:02.439387 [debug] [Thread-2 (]: SQL status: CREATE VIEW in 0.212 seconds
+[0m17:51:02.440939 [debug] [Thread-1 (]: SQL status: CREATE VIEW in 0.192 seconds
+[0m17:51:02.442378 [debug] [Thread-3 (]: SQL status: CREATE VIEW in 0.187 seconds
+[0m17:51:02.482555 [debug] [Thread-2 (]: Using postgres connection "model.signalflow.stg_nlp_features"
+[0m17:51:02.499216 [debug] [Thread-1 (]: Using postgres connection "model.signalflow.stg_metrics_history"
+[0m17:51:02.860802 [debug] [Thread-2 (]: On model.signalflow.stg_nlp_features: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.stg_nlp_features"} */
+alter table "reddit"."public_staging"."stg_nlp_features" rename to "stg_nlp_features__dbt_backup"
+[0m17:51:02.862798 [debug] [Thread-3 (]: Using postgres connection "model.signalflow.stg_posts"
+[0m17:51:02.868937 [debug] [Thread-1 (]: On model.signalflow.stg_metrics_history: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.stg_metrics_history"} */
+alter table "reddit"."public_staging"."stg_metrics_history" rename to "stg_metrics_history__dbt_backup"
+[0m17:51:02.878165 [debug] [Thread-3 (]: On model.signalflow.stg_posts: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.stg_posts"} */
+alter table "reddit"."public_staging"."stg_posts" rename to "stg_posts__dbt_backup"
+[0m17:51:02.920578 [debug] [Thread-3 (]: SQL status: ALTER TABLE in 0.022 seconds
+[0m17:51:02.922179 [debug] [Thread-2 (]: SQL status: ALTER TABLE in 0.048 seconds
+[0m17:51:02.924802 [debug] [Thread-1 (]: SQL status: ALTER TABLE in 0.031 seconds
+[0m17:51:02.941350 [debug] [Thread-3 (]: Using postgres connection "model.signalflow.stg_posts"
+[0m17:51:02.958940 [debug] [Thread-2 (]: Using postgres connection "model.signalflow.stg_nlp_features"
+[0m17:51:02.970159 [debug] [Thread-1 (]: Using postgres connection "model.signalflow.stg_metrics_history"
+[0m17:51:02.977557 [debug] [Thread-3 (]: On model.signalflow.stg_posts: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.stg_posts"} */
+alter table "reddit"."public_staging"."stg_posts__dbt_tmp" rename to "stg_posts"
+[0m17:51:02.985961 [debug] [Thread-2 (]: On model.signalflow.stg_nlp_features: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.stg_nlp_features"} */
+alter table "reddit"."public_staging"."stg_nlp_features__dbt_tmp" rename to "stg_nlp_features"
+[0m17:51:02.991598 [debug] [Thread-1 (]: On model.signalflow.stg_metrics_history: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.stg_metrics_history"} */
+alter table "reddit"."public_staging"."stg_metrics_history__dbt_tmp" rename to "stg_metrics_history"
+[0m17:51:03.004146 [debug] [Thread-1 (]: SQL status: ALTER TABLE in 0.005 seconds
+[0m17:51:03.005609 [debug] [Thread-3 (]: SQL status: ALTER TABLE in 0.011 seconds
+[0m17:51:03.020782 [debug] [Thread-2 (]: SQL status: ALTER TABLE in 0.024 seconds
+[0m17:51:03.147220 [debug] [Thread-3 (]: On model.signalflow.stg_posts: COMMIT
+[0m17:51:03.149829 [debug] [Thread-1 (]: On model.signalflow.stg_metrics_history: COMMIT
+[0m17:51:03.177043 [debug] [Thread-3 (]: Using postgres connection "model.signalflow.stg_posts"
+[0m17:51:03.212954 [debug] [Thread-2 (]: On model.signalflow.stg_nlp_features: COMMIT
+[0m17:51:03.217065 [debug] [Thread-1 (]: Using postgres connection "model.signalflow.stg_metrics_history"
+[0m17:51:03.224366 [debug] [Thread-3 (]: On model.signalflow.stg_posts: COMMIT
+[0m17:51:03.229760 [debug] [Thread-2 (]: Using postgres connection "model.signalflow.stg_nlp_features"
+[0m17:51:03.236075 [debug] [Thread-1 (]: On model.signalflow.stg_metrics_history: COMMIT
+[0m17:51:03.242596 [debug] [Thread-2 (]: On model.signalflow.stg_nlp_features: COMMIT
+[0m17:51:03.244528 [debug] [Thread-3 (]: SQL status: COMMIT in 0.005 seconds
+[0m17:51:03.259088 [debug] [Thread-1 (]: SQL status: COMMIT in 0.012 seconds
+[0m17:51:03.260632 [debug] [Thread-2 (]: SQL status: COMMIT in 0.011 seconds
+[0m17:51:03.294993 [debug] [Thread-3 (]: Applying DROP to: "reddit"."public_staging"."stg_posts__dbt_backup"
+[0m17:51:03.300054 [debug] [Thread-1 (]: Applying DROP to: "reddit"."public_staging"."stg_metrics_history__dbt_backup"
+[0m17:51:03.311985 [debug] [Thread-2 (]: Applying DROP to: "reddit"."public_staging"."stg_nlp_features__dbt_backup"
+[0m17:51:03.344880 [debug] [Thread-3 (]: Using postgres connection "model.signalflow.stg_posts"
+[0m17:51:03.350978 [debug] [Thread-1 (]: Using postgres connection "model.signalflow.stg_metrics_history"
+[0m17:51:03.358892 [debug] [Thread-2 (]: Using postgres connection "model.signalflow.stg_nlp_features"
+[0m17:51:03.368479 [debug] [Thread-3 (]: On model.signalflow.stg_posts: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.stg_posts"} */
+drop view if exists "reddit"."public_staging"."stg_posts__dbt_backup" cascade
+[0m17:51:03.375734 [debug] [Thread-1 (]: On model.signalflow.stg_metrics_history: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.stg_metrics_history"} */
+drop view if exists "reddit"."public_staging"."stg_metrics_history__dbt_backup" cascade
+[0m17:51:03.386011 [debug] [Thread-2 (]: On model.signalflow.stg_nlp_features: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.stg_nlp_features"} */
+drop view if exists "reddit"."public_staging"."stg_nlp_features__dbt_backup" cascade
+[0m17:51:03.462922 [debug] [Thread-2 (]: SQL status: DROP VIEW in 0.058 seconds
+[0m17:51:03.465482 [debug] [Thread-3 (]: SQL status: DROP VIEW in 0.073 seconds
+[0m17:51:03.467067 [debug] [Thread-1 (]: SQL status: DROP VIEW in 0.066 seconds
+[0m17:51:03.491412 [debug] [Thread-2 (]: On model.signalflow.stg_nlp_features: Close
+[0m17:51:03.508708 [debug] [Thread-3 (]: On model.signalflow.stg_posts: Close
+[0m17:51:03.530024 [debug] [Thread-1 (]: On model.signalflow.stg_metrics_history: Close
+[0m17:51:03.702077 [debug] [Thread-2 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': 'c70f4161-2c49-4be6-ab42-834d16f04131', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e4191670>]}
+[0m17:51:03.704075 [debug] [Thread-3 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': 'c70f4161-2c49-4be6-ab42-834d16f04131', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1d0309d30>]}
+[0m17:51:03.705499 [debug] [Thread-1 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': 'c70f4161-2c49-4be6-ab42-834d16f04131', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1d030a630>]}
+[0m17:51:03.711906 [info ] [Thread-2 (]: 2 of 8 OK created sql view model public_staging.stg_nlp_features ............... [[32mCREATE VIEW[0m in 1.86s]
+[0m17:51:03.725853 [info ] [Thread-3 (]: 3 of 8 OK created sql view model public_staging.stg_posts ...................... [[32mCREATE VIEW[0m in 1.88s]
+[0m17:51:03.735092 [info ] [Thread-1 (]: 1 of 8 OK created sql view model public_staging.stg_metrics_history ............ [[32mCREATE VIEW[0m in 1.89s]
+[0m17:51:03.742935 [debug] [Thread-2 (]: Finished running node model.signalflow.stg_nlp_features
+[0m17:51:03.758439 [debug] [Thread-3 (]: Finished running node model.signalflow.stg_posts
+[0m17:51:03.768541 [debug] [Thread-1 (]: Finished running node model.signalflow.stg_metrics_history
+[0m17:51:03.803728 [debug] [Thread-2 (]: Began running node model.signalflow.dim_subreddits
+[0m17:51:03.807953 [debug] [Thread-4 (]: Began running node model.signalflow.dim_posts
+[0m17:51:03.816241 [debug] [Thread-3 (]: Began running node model.signalflow.fct_hourly_engagement
+[0m17:51:03.830556 [info ] [Thread-2 (]: 5 of 8 START sql table model public_analytics.dim_subreddits ................... [RUN]
+[0m17:51:03.847690 [info ] [Thread-4 (]: 4 of 8 START sql table model public_analytics.dim_posts ........................ [RUN]
+[0m17:51:03.858192 [info ] [Thread-3 (]: 6 of 8 START sql incremental model public_analytics.fct_hourly_engagement ...... [RUN]
+[0m17:51:03.865425 [debug] [Thread-2 (]: Re-using an available connection from the pool (formerly model.signalflow.stg_nlp_features, now model.signalflow.dim_subreddits)
+[0m17:51:03.875760 [debug] [Thread-4 (]: Acquiring new postgres connection 'model.signalflow.dim_posts'
+[0m17:51:03.882913 [debug] [Thread-3 (]: Re-using an available connection from the pool (formerly model.signalflow.stg_posts, now model.signalflow.fct_hourly_engagement)
+[0m17:51:03.890343 [debug] [Thread-2 (]: Began compiling node model.signalflow.dim_subreddits
+[0m17:51:03.897500 [debug] [Thread-4 (]: Began compiling node model.signalflow.dim_posts
+[0m17:51:03.902942 [debug] [Thread-3 (]: Began compiling node model.signalflow.fct_hourly_engagement
+[0m17:51:03.936589 [debug] [Thread-2 (]: Writing injected SQL for node "model.signalflow.dim_subreddits"
+[0m17:51:03.987923 [debug] [Thread-4 (]: Writing injected SQL for node "model.signalflow.dim_posts"
+[0m17:51:04.065421 [debug] [Thread-3 (]: Writing injected SQL for node "model.signalflow.fct_hourly_engagement"
+[0m17:51:04.086801 [debug] [Thread-2 (]: Began executing node model.signalflow.dim_subreddits
+[0m17:51:04.119926 [debug] [Thread-4 (]: Began executing node model.signalflow.dim_posts
+[0m17:51:04.181193 [debug] [Thread-3 (]: Began executing node model.signalflow.fct_hourly_engagement
+[0m17:51:04.520940 [debug] [Thread-2 (]: Writing runtime sql for node "model.signalflow.dim_subreddits"
+[0m17:51:04.555229 [debug] [Thread-4 (]: Writing runtime sql for node "model.signalflow.dim_posts"
+[0m17:51:04.703644 [debug] [Thread-3 (]: Using postgres connection "model.signalflow.fct_hourly_engagement"
+[0m17:51:04.717242 [debug] [Thread-3 (]: On model.signalflow.fct_hourly_engagement: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_hourly_engagement"} */
+
+    
+  
+    
+
+  create temporary table "fct_hourly_engagement__dbt_tmp175104663020"
+  
+  
+    as
+  
+  (
+    -- fct_hourly_engagement.sql
+-- Hourly rollup of engagement metrics per subreddit.
+-- This is the documented, tested, version-controlled equivalent of the
+-- TimescaleDB continuous aggregate (post_metrics_hourly).
+-- The difference: this model adds sentiment context and trending counts
+-- which the raw continuous aggregate doesn't include.
+-- Incremental on recorded_hour — each run only processes new hours.
+
+
+
+with history as (
+    select * from "reddit"."public_staging"."stg_metrics_history"
+
+    
+    where recorded_hour >= date_trunc('hour', now() - interval '3 hours')
+    
+),
+
+posts as (
+    select post_id, subreddit_id, score_velocity, comment_velocity,
+           is_trending, trending_score
+    from "reddit"."public_staging"."stg_posts"
+),
+
+nlp as (
+    select post_id, sentiment_score, sentiment_label
+    from "reddit"."public_staging"."stg_nlp_features"
+),
+
+-- join history snapshots with current post state and NLP
+joined as (
+    select
+        h.recorded_hour,
+        h.recorded_date,
+        p.subreddit_id,
+        h.post_id,
+        h.score,
+        h.num_comments,
+        h.upvote_ratio,
+        -- velocity comes from posts table (current state)
+        -- history table doesn't store velocity per snapshot
+        p.score_velocity,
+        p.comment_velocity,
+        p.is_trending,
+        p.trending_score,
+        n.sentiment_score,
+        n.sentiment_label
+
+    from history h
+    join  posts p on p.post_id = h.post_id
+    left join nlp n on n.post_id = h.post_id
+),
+
+aggregated as (
+    select
+        recorded_hour,
+        recorded_date,
+        subreddit_id,
+
+        -- volume
+        count(distinct post_id)                         as unique_posts_observed,
+        count(*)                                        as total_snapshots,
+        count(*) filter (where is_trending)             as trending_snapshots,
+
+        -- engagement aggregates
+        avg(score)                                      as avg_score,
+        max(score)                                      as max_score,
+        avg(num_comments)                               as avg_comments,
+        avg(upvote_ratio)                               as avg_upvote_ratio,
+
+        -- velocity from current post state
+        avg(score_velocity)                             as avg_score_velocity,
+        max(score_velocity)                             as peak_score_velocity,
+        avg(comment_velocity)                           as avg_comment_velocity,
+        avg(trending_score)                             as avg_trending_score,
+
+        -- sentiment aggregates
+        avg(sentiment_score)                            as avg_sentiment_score,
+        count(*) filter (
+            where sentiment_label = 'positive'
+        )                                               as positive_post_count,
+        count(*) filter (
+            where sentiment_label = 'negative'
+        )                                               as negative_post_count,
+        count(*) filter (
+            where sentiment_label = 'neutral'
+        )                                               as neutral_post_count,
+
+        -- trending rate
+        round(
+            count(*) filter (where is_trending)::numeric
+            / nullif(count(*), 0) * 100,
+            2
+        )                                               as trending_rate_pct,
+
+        -- time dimensions for pattern analysis
+        extract(hour from recorded_hour)                as hour_of_day,
+        extract(dow from recorded_hour)                 as day_of_week
+
+    from joined
+    group by recorded_hour, recorded_date, subreddit_id
+)
+
+select * from aggregated
+  );
+  
+  
+[0m17:51:04.728117 [debug] [Thread-2 (]: Using postgres connection "model.signalflow.dim_subreddits"
+[0m17:51:04.747713 [debug] [Thread-3 (]: Opening a new connection, currently in state closed
+[0m17:51:04.768234 [debug] [Thread-2 (]: On model.signalflow.dim_subreddits: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.dim_subreddits"} */
+
+  
+    
+
+  create  table "reddit"."public_analytics"."dim_subreddits__dbt_tmp"
+  
+  
+    as
+  
+  (
+    -- dim_subreddits.sql
+-- One row per subreddit with aggregated performance stats.
+-- Answers: which subreddits are most active, most positive, most likely to trend?
+-- Materialised as TABLE — rebuilt on every dbt run.
+
+with posts as (
+    select * from "reddit"."public_staging"."stg_posts"
+),
+
+nlp as (
+    select * from "reddit"."public_staging"."stg_nlp_features"
+),
+
+-- subreddits table has id (int) and name (text) — the correct name lookup
+subreddits as (
+    select id, name from "reddit"."public"."subreddits"
+),
+
+config as (
+    select * from "reddit"."public"."subreddit_config"
+),
+
+post_stats as (
+    select
+        p.subreddit_id,
+
+        -- volume
+        count(*)                                        as total_posts,
+        count(*) filter (where p.is_trending)           as trending_posts,
+
+        -- engagement
+        avg(p.score)                                    as avg_score,
+        max(p.score)                                    as peak_score,
+        avg(p.num_comments)                             as avg_comments,
+        avg(p.score_velocity)                           as avg_score_velocity,
+        max(p.score_velocity)                           as peak_score_velocity,
+
+        -- trending rate
+        round(
+            count(*) filter (where p.is_trending)::numeric
+            / nullif(count(*), 0) * 100,
+            2
+        )                                               as trending_rate_pct,
+
+        -- recency
+        max(p.last_polled_at)                           as last_activity_at,
+        min(p.first_seen_at)                            as first_post_seen_at
+
+    from posts p
+    group by p.subreddit_id
+),
+
+sentiment_stats as (
+    select
+        p.subreddit_id,
+        avg(n.sentiment_score)                          as avg_sentiment_score,
+        mode() within group (order by n.sentiment_label) as dominant_sentiment,
+        count(*) filter (where n.sentiment_label = 'positive') as positive_posts,
+        count(*) filter (where n.sentiment_label = 'negative') as negative_posts,
+        count(*) filter (where n.sentiment_label = 'neutral')  as neutral_posts
+
+    from posts p
+    left join nlp n on n.post_id = p.post_id
+    where n.post_id is not null
+    group by p.subreddit_id
+),
+
+final as (
+    select
+        ps.subreddit_id,
+
+        -- name from subreddits table (correct lookup via int FK)
+        s.name                                          as subreddit_name,
+
+        -- config metadata
+        c.is_active                                     as is_actively_polled,
+        c.interval_seconds                              as poll_interval_seconds,
+
+        -- volume stats
+        ps.total_posts,
+        ps.trending_posts,
+        ps.trending_rate_pct,
+
+        -- engagement stats
+        ps.avg_score,
+        ps.peak_score,
+        ps.avg_comments,
+        ps.avg_score_velocity,
+        ps.peak_score_velocity,
+
+        -- sentiment stats
+        ss.avg_sentiment_score,
+        ss.dominant_sentiment,
+        ss.positive_posts,
+        ss.negative_posts,
+        ss.neutral_posts,
+
+        -- recency
+        ps.last_activity_at,
+        ps.first_post_seen_at,
+
+        -- signal tier
+        case
+            when ps.trending_rate_pct >= 20 and ps.avg_score_velocity >= 10
+                then 'high_signal'
+            when ps.trending_rate_pct >= 10 or  ps.avg_score_velocity >= 5
+                then 'medium_signal'
+            else
+                'low_signal'
+        end                                             as signal_tier
+
+    from post_stats ps
+    left join subreddits s           on s.id   = ps.subreddit_id
+    left join sentiment_stats ss     on ss.subreddit_id = ps.subreddit_id
+    left join config c               on c.name = s.name
+)
+
+select * from final
+  );
+  
+[0m17:51:04.787948 [debug] [Thread-2 (]: Opening a new connection, currently in state closed
+[0m17:51:04.780776 [debug] [Thread-4 (]: Using postgres connection "model.signalflow.dim_posts"
+[0m17:51:04.850226 [debug] [Thread-4 (]: On model.signalflow.dim_posts: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.dim_posts"} */
+
+  
+    
+
+  create  table "reddit"."public_analytics"."dim_posts__dbt_tmp"
+  
+  
+    as
+  
+  (
+    -- dim_posts.sql
+-- One enriched row per Reddit post.
+-- Joins posts with NLP features into a single clean analytical record.
+-- Materialised as TABLE — stable reference for all fact model joins.
+-- Refreshed on every dbt run (full table rebuild).
+
+with posts as (
+    select * from "reddit"."public_staging"."stg_posts"
+),
+
+nlp as (
+    select * from "reddit"."public_staging"."stg_nlp_features"
+),
+
+enriched as (
+    select
+        -- identity
+        p.post_id,
+        p.title,
+        p.author,
+        p.subreddit_id,
+        p.created_utc,
+
+        -- current engagement state
+        p.score,
+        p.num_comments,
+        p.upvote_ratio,
+        p.score_velocity,
+        p.comment_velocity,
+        p.combined_velocity,
+
+        -- trending state
+        p.trending_score,
+        p.is_trending,
+
+        -- lifecycle
+        p.poll_priority,
+        p.first_seen_at,
+        p.last_polled_at,
+        p.age_hours,
+        p.hours_polled,
+
+        -- NLP signals
+        coalesce(n.sentiment_score, 0.0)                as sentiment_score,
+        coalesce(n.sentiment_label, 'neutral')          as sentiment_label,
+        coalesce(n.keywords_raw, '[]')                  as keywords_raw,
+        coalesce(n.keyword_count, 0)                    as keyword_count,
+        coalesce(n.topic_cluster, 'unknown')            as topic_cluster,
+
+        -- derived engagement composite
+        p.score + (p.num_comments * 2)                  as engagement_score,
+
+        -- momentum: velocity weighted by age
+        case
+            when p.age_hours > 0
+            then p.score_velocity * ln(1 + p.age_hours)
+            else 0.0
+        end                                             as momentum_score,
+
+        -- post age bucket
+        case
+            when p.age_hours <  1  then 'under_1h'
+            when p.age_hours <  6  then '1h_to_6h'
+            when p.age_hours < 12  then '6h_to_12h'
+            when p.age_hours < 24  then '12h_to_24h'
+            else                        'over_24h'
+        end                                             as age_bucket
+
+    from posts p
+    left join nlp n on n.post_id = p.post_id
+)
+
+select * from enriched
+  );
+  
+[0m17:51:04.858978 [debug] [Thread-4 (]: Opening a new connection, currently in state init
+[0m17:51:05.935162 [debug] [Thread-2 (]: SQL status: SELECT 115 in 1.147 seconds
+[0m17:51:05.977518 [debug] [Thread-2 (]: Using postgres connection "model.signalflow.dim_subreddits"
+[0m17:51:06.004009 [debug] [Thread-3 (]: SQL status: SELECT 154 in 1.256 seconds
+[0m17:51:05.986321 [debug] [Thread-2 (]: On model.signalflow.dim_subreddits: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.dim_subreddits"} */
+alter table "reddit"."public_analytics"."dim_subreddits" rename to "dim_subreddits__dbt_backup"
+[0m17:51:06.095253 [debug] [Thread-2 (]: SQL status: ALTER TABLE in 0.019 seconds
+[0m17:51:06.139475 [debug] [Thread-3 (]: Using postgres connection "model.signalflow.fct_hourly_engagement"
+[0m17:51:06.162033 [debug] [Thread-3 (]: On model.signalflow.fct_hourly_engagement: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_hourly_engagement"} */
+
+      select
+          column_name,
+          data_type,
+          character_maximum_length,
+          numeric_precision,
+          numeric_scale
+
+      from INFORMATION_SCHEMA.columns
+      where table_name = 'fct_hourly_engagement__dbt_tmp175104663020'
+        
+      order by ordinal_position
+
+  
+[0m17:51:06.152227 [debug] [Thread-2 (]: Using postgres connection "model.signalflow.dim_subreddits"
+[0m17:51:06.168875 [debug] [Thread-2 (]: On model.signalflow.dim_subreddits: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.dim_subreddits"} */
+alter table "reddit"."public_analytics"."dim_subreddits__dbt_tmp" rename to "dim_subreddits"
+[0m17:51:06.177066 [debug] [Thread-2 (]: SQL status: ALTER TABLE in 0.004 seconds
+[0m17:51:06.187414 [debug] [Thread-2 (]: On model.signalflow.dim_subreddits: COMMIT
+[0m17:51:06.191746 [debug] [Thread-2 (]: Using postgres connection "model.signalflow.dim_subreddits"
+[0m17:51:06.194926 [debug] [Thread-2 (]: On model.signalflow.dim_subreddits: COMMIT
+[0m17:51:06.209546 [debug] [Thread-2 (]: SQL status: COMMIT in 0.011 seconds
+[0m17:51:06.225523 [debug] [Thread-2 (]: Applying DROP to: "reddit"."public_analytics"."dim_subreddits__dbt_backup"
+[0m17:51:06.252119 [debug] [Thread-2 (]: Using postgres connection "model.signalflow.dim_subreddits"
+[0m17:51:06.261437 [debug] [Thread-2 (]: On model.signalflow.dim_subreddits: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.dim_subreddits"} */
+drop table if exists "reddit"."public_analytics"."dim_subreddits__dbt_backup" cascade
+[0m17:51:06.289966 [debug] [Thread-3 (]: SQL status: SELECT 21 in 0.124 seconds
+[0m17:51:06.319498 [debug] [Thread-2 (]: SQL status: DROP TABLE in 0.045 seconds
+[0m17:51:06.323879 [debug] [Thread-3 (]: Using postgres connection "model.signalflow.fct_hourly_engagement"
+[0m17:51:06.334191 [debug] [Thread-2 (]: On model.signalflow.dim_subreddits: Close
+[0m17:51:06.338560 [debug] [Thread-3 (]: On model.signalflow.fct_hourly_engagement: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_hourly_engagement"} */
+
+      select
+          column_name,
+          data_type,
+          character_maximum_length,
+          numeric_precision,
+          numeric_scale
+
+      from "reddit".INFORMATION_SCHEMA.columns
+      where table_name = 'fct_hourly_engagement'
+        
+        and table_schema = 'public_analytics'
+        
+      order by ordinal_position
+
+  
+[0m17:51:06.343315 [debug] [Thread-2 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': 'c70f4161-2c49-4be6-ab42-834d16f04131', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e1dfad20>]}
+[0m17:51:06.347962 [info ] [Thread-2 (]: 5 of 8 OK created sql table model public_analytics.dim_subreddits .............. [[32mSELECT 115[0m in 2.48s]
+[0m17:51:06.358606 [debug] [Thread-2 (]: Finished running node model.signalflow.dim_subreddits
+[0m17:51:06.366237 [debug] [Thread-3 (]: SQL status: SELECT 21 in 0.021 seconds
+[0m17:51:06.448579 [debug] [Thread-3 (]: Using postgres connection "model.signalflow.fct_hourly_engagement"
+[0m17:51:06.455819 [debug] [Thread-3 (]: On model.signalflow.fct_hourly_engagement: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_hourly_engagement"} */
+
+      select
+          column_name,
+          data_type,
+          character_maximum_length,
+          numeric_precision,
+          numeric_scale
+
+      from INFORMATION_SCHEMA.columns
+      where table_name = 'fct_hourly_engagement__dbt_tmp175104663020'
+        
+      order by ordinal_position
+
+  
+[0m17:51:06.485080 [debug] [Thread-3 (]: SQL status: SELECT 21 in 0.023 seconds
+[0m17:51:06.499333 [debug] [Thread-3 (]: Using postgres connection "model.signalflow.fct_hourly_engagement"
+[0m17:51:06.504336 [debug] [Thread-3 (]: On model.signalflow.fct_hourly_engagement: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_hourly_engagement"} */
+
+      select
+          column_name,
+          data_type,
+          character_maximum_length,
+          numeric_precision,
+          numeric_scale
+
+      from "reddit".INFORMATION_SCHEMA.columns
+      where table_name = 'fct_hourly_engagement'
+        
+        and table_schema = 'public_analytics'
+        
+      order by ordinal_position
+
+  
+[0m17:51:06.530453 [debug] [Thread-3 (]: SQL status: SELECT 21 in 0.023 seconds
+[0m17:51:06.601829 [debug] [Thread-3 (]: 
+    In "reddit"."public_analytics"."fct_hourly_engagement":
+        Schema changed: False
+        Source columns not in target: []
+        Target columns not in source: []
+        New column types: []
+  
+[0m17:51:06.733326 [debug] [Thread-3 (]: Writing runtime sql for node "model.signalflow.fct_hourly_engagement"
+[0m17:51:06.734882 [debug] [Thread-4 (]: SQL status: SELECT 25922 in 1.876 seconds
+[0m17:51:06.754491 [debug] [Thread-4 (]: Using postgres connection "model.signalflow.dim_posts"
+[0m17:51:06.758058 [debug] [Thread-4 (]: On model.signalflow.dim_posts: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.dim_posts"} */
+alter table "reddit"."public_analytics"."dim_posts" rename to "dim_posts__dbt_backup"
+[0m17:51:06.765313 [debug] [Thread-4 (]: SQL status: ALTER TABLE in 0.003 seconds
+[0m17:51:06.780223 [debug] [Thread-4 (]: Using postgres connection "model.signalflow.dim_posts"
+[0m17:51:06.785702 [debug] [Thread-4 (]: On model.signalflow.dim_posts: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.dim_posts"} */
+alter table "reddit"."public_analytics"."dim_posts__dbt_tmp" rename to "dim_posts"
+[0m17:51:06.789673 [debug] [Thread-3 (]: Using postgres connection "model.signalflow.fct_hourly_engagement"
+[0m17:51:06.797059 [debug] [Thread-4 (]: SQL status: ALTER TABLE in 0.003 seconds
+[0m17:51:06.799794 [debug] [Thread-3 (]: On model.signalflow.fct_hourly_engagement: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_hourly_engagement"} */
+
+      -- back compat for old kwarg name
+  
+  
+        
+            
+                
+                
+            
+                
+                
+            
+        
+    
+
+    
+
+    merge into "reddit"."public_analytics"."fct_hourly_engagement" as DBT_INTERNAL_DEST
+        using "fct_hourly_engagement__dbt_tmp175104663020" as DBT_INTERNAL_SOURCE
+        on (
+                    DBT_INTERNAL_SOURCE.subreddit_id = DBT_INTERNAL_DEST.subreddit_id
+                ) and (
+                    DBT_INTERNAL_SOURCE.recorded_hour = DBT_INTERNAL_DEST.recorded_hour
+                )
+
+    
+    when matched then update set
+        "recorded_hour" = DBT_INTERNAL_SOURCE."recorded_hour","recorded_date" = DBT_INTERNAL_SOURCE."recorded_date","subreddit_id" = DBT_INTERNAL_SOURCE."subreddit_id","unique_posts_observed" = DBT_INTERNAL_SOURCE."unique_posts_observed","total_snapshots" = DBT_INTERNAL_SOURCE."total_snapshots","trending_snapshots" = DBT_INTERNAL_SOURCE."trending_snapshots","avg_score" = DBT_INTERNAL_SOURCE."avg_score","max_score" = DBT_INTERNAL_SOURCE."max_score","avg_comments" = DBT_INTERNAL_SOURCE."avg_comments","avg_upvote_ratio" = DBT_INTERNAL_SOURCE."avg_upvote_ratio","avg_score_velocity" = DBT_INTERNAL_SOURCE."avg_score_velocity","peak_score_velocity" = DBT_INTERNAL_SOURCE."peak_score_velocity","avg_comment_velocity" = DBT_INTERNAL_SOURCE."avg_comment_velocity","avg_trending_score" = DBT_INTERNAL_SOURCE."avg_trending_score","avg_sentiment_score" = DBT_INTERNAL_SOURCE."avg_sentiment_score","positive_post_count" = DBT_INTERNAL_SOURCE."positive_post_count","negative_post_count" = DBT_INTERNAL_SOURCE."negative_post_count","neutral_post_count" = DBT_INTERNAL_SOURCE."neutral_post_count","trending_rate_pct" = DBT_INTERNAL_SOURCE."trending_rate_pct","hour_of_day" = DBT_INTERNAL_SOURCE."hour_of_day","day_of_week" = DBT_INTERNAL_SOURCE."day_of_week"
+    
+
+    when not matched then insert
+        ("recorded_hour", "recorded_date", "subreddit_id", "unique_posts_observed", "total_snapshots", "trending_snapshots", "avg_score", "max_score", "avg_comments", "avg_upvote_ratio", "avg_score_velocity", "peak_score_velocity", "avg_comment_velocity", "avg_trending_score", "avg_sentiment_score", "positive_post_count", "negative_post_count", "neutral_post_count", "trending_rate_pct", "hour_of_day", "day_of_week")
+    values
+        ("recorded_hour", "recorded_date", "subreddit_id", "unique_posts_observed", "total_snapshots", "trending_snapshots", "avg_score", "max_score", "avg_comments", "avg_upvote_ratio", "avg_score_velocity", "peak_score_velocity", "avg_comment_velocity", "avg_trending_score", "avg_sentiment_score", "positive_post_count", "negative_post_count", "neutral_post_count", "trending_rate_pct", "hour_of_day", "day_of_week")
+
+
+  
+[0m17:51:06.812912 [debug] [Thread-4 (]: On model.signalflow.dim_posts: COMMIT
+[0m17:51:06.818332 [debug] [Thread-4 (]: Using postgres connection "model.signalflow.dim_posts"
+[0m17:51:06.821608 [debug] [Thread-4 (]: On model.signalflow.dim_posts: COMMIT
+[0m17:51:06.830937 [debug] [Thread-4 (]: SQL status: COMMIT in 0.005 seconds
+[0m17:51:06.846131 [debug] [Thread-4 (]: Applying DROP to: "reddit"."public_analytics"."dim_posts__dbt_backup"
+[0m17:51:06.851802 [debug] [Thread-4 (]: Using postgres connection "model.signalflow.dim_posts"
+[0m17:51:06.875137 [debug] [Thread-4 (]: On model.signalflow.dim_posts: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.dim_posts"} */
+drop table if exists "reddit"."public_analytics"."dim_posts__dbt_backup" cascade
+[0m17:51:06.890584 [debug] [Thread-3 (]: SQL status: MERGE 154 in 0.074 seconds
+[0m17:51:06.901368 [debug] [Thread-3 (]: On model.signalflow.fct_hourly_engagement: COMMIT
+[0m17:51:06.908698 [debug] [Thread-3 (]: Using postgres connection "model.signalflow.fct_hourly_engagement"
+[0m17:51:06.912261 [debug] [Thread-3 (]: On model.signalflow.fct_hourly_engagement: COMMIT
+[0m17:51:06.913802 [debug] [Thread-4 (]: SQL status: DROP TABLE in 0.036 seconds
+[0m17:51:06.924547 [debug] [Thread-3 (]: SQL status: COMMIT in 0.009 seconds
+[0m17:51:06.924061 [debug] [Thread-4 (]: On model.signalflow.dim_posts: Close
+[0m17:51:06.929831 [debug] [Thread-3 (]: On model.signalflow.fct_hourly_engagement: Close
+[0m17:51:06.935601 [debug] [Thread-4 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': 'c70f4161-2c49-4be6-ab42-834d16f04131', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e1950680>]}
+[0m17:51:06.939658 [debug] [Thread-3 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': 'c70f4161-2c49-4be6-ab42-834d16f04131', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e0dc7650>]}
+[0m17:51:06.943245 [info ] [Thread-4 (]: 4 of 8 OK created sql table model public_analytics.dim_posts ................... [[32mSELECT 25922[0m in 3.06s]
+[0m17:51:06.947451 [info ] [Thread-3 (]: 6 of 8 OK created sql incremental model public_analytics.fct_hourly_engagement . [[32mMERGE 154[0m in 3.06s]
+[0m17:51:06.957602 [debug] [Thread-4 (]: Finished running node model.signalflow.dim_posts
+[0m17:51:06.962836 [debug] [Thread-3 (]: Finished running node model.signalflow.fct_hourly_engagement
+[0m17:51:06.967259 [debug] [Thread-1 (]: Began running node model.signalflow.fct_post_lifecycle
+[0m17:51:06.972824 [info ] [Thread-1 (]: 7 of 8 START sql incremental model public_analytics.fct_post_lifecycle ......... [RUN]
+[0m17:51:06.977614 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly model.signalflow.stg_metrics_history, now model.signalflow.fct_post_lifecycle)
+[0m17:51:06.981916 [debug] [Thread-1 (]: Began compiling node model.signalflow.fct_post_lifecycle
+[0m17:51:06.999947 [debug] [Thread-1 (]: Writing injected SQL for node "model.signalflow.fct_post_lifecycle"
+[0m17:51:07.033157 [debug] [Thread-1 (]: Began executing node model.signalflow.fct_post_lifecycle
+[0m17:51:07.057193 [debug] [Thread-1 (]: Using postgres connection "model.signalflow.fct_post_lifecycle"
+[0m17:51:07.060720 [debug] [Thread-1 (]: On model.signalflow.fct_post_lifecycle: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_post_lifecycle"} */
+
+    
+  
+    
+
+  create temporary table "fct_post_lifecycle__dbt_tmp175107044997"
+  
+  
+    as
+  
+  (
+    -- fct_post_lifecycle.sql
+-- One row per post. Answers the full lifecycle question:
+-- How long did it take to trend? What was peak engagement?
+-- Did initial sentiment predict whether it would trend?
+-- Incremental — only processes posts updated since last dbt run.
+
+
+
+with history as (
+    select * from "reddit"."public_staging"."stg_metrics_history"
+
+    
+    where recorded_at >= now() - interval '2 hours'
+    
+),
+
+posts as (
+    select * from "reddit"."public_analytics"."dim_posts"
+),
+
+-- peak engagement from history snapshots
+-- note: history doesn't store velocity/trending — those come from posts table
+peak_stats as (
+    select
+        post_id,
+        count(*)                    as total_snapshots,
+        max(score)                  as peak_score_ever,
+        max(num_comments)           as peak_comments_ever,
+        avg(score)                  as avg_score_lifetime,
+        avg(upvote_ratio)           as avg_upvote_ratio,
+        min(recorded_at)            as first_snapshot_at,
+        max(recorded_at)            as last_snapshot_at
+    from history
+    group by post_id
+),
+
+final as (
+    select
+        p.post_id,
+        p.subreddit_id,
+        p.title,
+        p.author,
+        p.created_utc,
+        p.first_seen_at,
+        p.last_polled_at,
+        p.age_hours,
+        p.poll_priority,
+
+        -- current state from posts table
+        p.score                                         as current_score,
+        p.num_comments                                  as current_comments,
+        p.is_trending,
+        p.trending_score,
+        p.score_velocity,
+        p.comment_velocity,
+
+        -- NLP at ingestion time
+        p.sentiment_score                               as initial_sentiment_score,
+        p.sentiment_label                               as initial_sentiment_label,
+        p.keyword_count,
+
+        -- lifecycle stats from history
+        h.total_snapshots,
+        h.peak_score_ever,
+        h.peak_comments_ever,
+        h.avg_score_lifetime,
+        h.avg_upvote_ratio,
+        h.first_snapshot_at,
+        h.last_snapshot_at,
+
+        -- score growth: how much did the score grow from first to peak
+        case
+            when h.total_snapshots > 1
+            then h.peak_score_ever - p.score
+            else 0
+        end                                             as score_growth,
+
+        -- sentiment bucket for grouping
+        case
+            when p.sentiment_score >=  0.5  then 'strongly_positive'
+            when p.sentiment_score >=  0.05 then 'mildly_positive'
+            when p.sentiment_score <= -0.5  then 'strongly_negative'
+            when p.sentiment_score <= -0.05 then 'mildly_negative'
+            else                                 'neutral'
+        end                                             as sentiment_bucket,
+
+        -- engagement composite
+        p.engagement_score,
+        p.momentum_score,
+        p.age_bucket
+
+    from posts p
+    left join peak_stats h on h.post_id = p.post_id
+)
+
+select * from final
+  );
+  
+  
+[0m17:51:07.066479 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m17:51:07.361905 [debug] [Thread-1 (]: SQL status: SELECT 25922 in 0.296 seconds
+[0m17:51:07.379059 [debug] [Thread-1 (]: Using postgres connection "model.signalflow.fct_post_lifecycle"
+[0m17:51:07.381767 [debug] [Thread-1 (]: On model.signalflow.fct_post_lifecycle: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_post_lifecycle"} */
+
+      select
+          column_name,
+          data_type,
+          character_maximum_length,
+          numeric_precision,
+          numeric_scale
+
+      from INFORMATION_SCHEMA.columns
+      where table_name = 'fct_post_lifecycle__dbt_tmp175107044997'
+        
+      order by ordinal_position
+
+  
+[0m17:51:07.581981 [debug] [Thread-1 (]: SQL status: SELECT 30 in 0.198 seconds
+[0m17:51:07.593513 [debug] [Thread-1 (]: Using postgres connection "model.signalflow.fct_post_lifecycle"
+[0m17:51:07.595979 [debug] [Thread-1 (]: On model.signalflow.fct_post_lifecycle: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_post_lifecycle"} */
+
+      select
+          column_name,
+          data_type,
+          character_maximum_length,
+          numeric_precision,
+          numeric_scale
+
+      from "reddit".INFORMATION_SCHEMA.columns
+      where table_name = 'fct_post_lifecycle'
+        
+        and table_schema = 'public_analytics'
+        
+      order by ordinal_position
+
+  
+[0m17:51:07.611655 [debug] [Thread-1 (]: SQL status: SELECT 30 in 0.013 seconds
+[0m17:51:07.623274 [debug] [Thread-1 (]: Using postgres connection "model.signalflow.fct_post_lifecycle"
+[0m17:51:07.626297 [debug] [Thread-1 (]: On model.signalflow.fct_post_lifecycle: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_post_lifecycle"} */
+
+      select
+          column_name,
+          data_type,
+          character_maximum_length,
+          numeric_precision,
+          numeric_scale
+
+      from INFORMATION_SCHEMA.columns
+      where table_name = 'fct_post_lifecycle__dbt_tmp175107044997'
+        
+      order by ordinal_position
+
+  
+[0m17:51:07.645308 [debug] [Thread-1 (]: SQL status: SELECT 30 in 0.016 seconds
+[0m17:51:07.657391 [debug] [Thread-1 (]: Using postgres connection "model.signalflow.fct_post_lifecycle"
+[0m17:51:07.660456 [debug] [Thread-1 (]: On model.signalflow.fct_post_lifecycle: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_post_lifecycle"} */
+
+      select
+          column_name,
+          data_type,
+          character_maximum_length,
+          numeric_precision,
+          numeric_scale
+
+      from "reddit".INFORMATION_SCHEMA.columns
+      where table_name = 'fct_post_lifecycle'
+        
+        and table_schema = 'public_analytics'
+        
+      order by ordinal_position
+
+  
+[0m17:51:07.677104 [debug] [Thread-1 (]: SQL status: SELECT 30 in 0.012 seconds
+[0m17:51:07.704597 [debug] [Thread-1 (]: 
+    In "reddit"."public_analytics"."fct_post_lifecycle":
+        Schema changed: False
+        Source columns not in target: []
+        Target columns not in source: []
+        New column types: []
+  
+[0m17:51:07.737147 [debug] [Thread-1 (]: Writing runtime sql for node "model.signalflow.fct_post_lifecycle"
+[0m17:51:07.771202 [debug] [Thread-1 (]: Using postgres connection "model.signalflow.fct_post_lifecycle"
+[0m17:51:07.775136 [debug] [Thread-1 (]: On model.signalflow.fct_post_lifecycle: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_post_lifecycle"} */
+
+      -- back compat for old kwarg name
+  
+  
+        
+            
+	    
+	    
+            
+        
+    
+
+    
+
+    merge into "reddit"."public_analytics"."fct_post_lifecycle" as DBT_INTERNAL_DEST
+        using "fct_post_lifecycle__dbt_tmp175107044997" as DBT_INTERNAL_SOURCE
+        on ((DBT_INTERNAL_SOURCE.post_id = DBT_INTERNAL_DEST.post_id))
+
+    
+    when matched then update set
+        "post_id" = DBT_INTERNAL_SOURCE."post_id","subreddit_id" = DBT_INTERNAL_SOURCE."subreddit_id","title" = DBT_INTERNAL_SOURCE."title","author" = DBT_INTERNAL_SOURCE."author","created_utc" = DBT_INTERNAL_SOURCE."created_utc","first_seen_at" = DBT_INTERNAL_SOURCE."first_seen_at","last_polled_at" = DBT_INTERNAL_SOURCE."last_polled_at","age_hours" = DBT_INTERNAL_SOURCE."age_hours","poll_priority" = DBT_INTERNAL_SOURCE."poll_priority","current_score" = DBT_INTERNAL_SOURCE."current_score","current_comments" = DBT_INTERNAL_SOURCE."current_comments","is_trending" = DBT_INTERNAL_SOURCE."is_trending","trending_score" = DBT_INTERNAL_SOURCE."trending_score","score_velocity" = DBT_INTERNAL_SOURCE."score_velocity","comment_velocity" = DBT_INTERNAL_SOURCE."comment_velocity","initial_sentiment_score" = DBT_INTERNAL_SOURCE."initial_sentiment_score","initial_sentiment_label" = DBT_INTERNAL_SOURCE."initial_sentiment_label","keyword_count" = DBT_INTERNAL_SOURCE."keyword_count","total_snapshots" = DBT_INTERNAL_SOURCE."total_snapshots","peak_score_ever" = DBT_INTERNAL_SOURCE."peak_score_ever","peak_comments_ever" = DBT_INTERNAL_SOURCE."peak_comments_ever","avg_score_lifetime" = DBT_INTERNAL_SOURCE."avg_score_lifetime","avg_upvote_ratio" = DBT_INTERNAL_SOURCE."avg_upvote_ratio","first_snapshot_at" = DBT_INTERNAL_SOURCE."first_snapshot_at","last_snapshot_at" = DBT_INTERNAL_SOURCE."last_snapshot_at","score_growth" = DBT_INTERNAL_SOURCE."score_growth","sentiment_bucket" = DBT_INTERNAL_SOURCE."sentiment_bucket","engagement_score" = DBT_INTERNAL_SOURCE."engagement_score","momentum_score" = DBT_INTERNAL_SOURCE."momentum_score","age_bucket" = DBT_INTERNAL_SOURCE."age_bucket"
+    
+
+    when not matched then insert
+        ("post_id", "subreddit_id", "title", "author", "created_utc", "first_seen_at", "last_polled_at", "age_hours", "poll_priority", "current_score", "current_comments", "is_trending", "trending_score", "score_velocity", "comment_velocity", "initial_sentiment_score", "initial_sentiment_label", "keyword_count", "total_snapshots", "peak_score_ever", "peak_comments_ever", "avg_score_lifetime", "avg_upvote_ratio", "first_snapshot_at", "last_snapshot_at", "score_growth", "sentiment_bucket", "engagement_score", "momentum_score", "age_bucket")
+    values
+        ("post_id", "subreddit_id", "title", "author", "created_utc", "first_seen_at", "last_polled_at", "age_hours", "poll_priority", "current_score", "current_comments", "is_trending", "trending_score", "score_velocity", "comment_velocity", "initial_sentiment_score", "initial_sentiment_label", "keyword_count", "total_snapshots", "peak_score_ever", "peak_comments_ever", "avg_score_lifetime", "avg_upvote_ratio", "first_snapshot_at", "last_snapshot_at", "score_growth", "sentiment_bucket", "engagement_score", "momentum_score", "age_bucket")
+
+
+  
+[0m17:51:09.622652 [debug] [Thread-1 (]: SQL status: MERGE 25922 in 1.844 seconds
+[0m17:51:09.629842 [debug] [Thread-1 (]: On model.signalflow.fct_post_lifecycle: COMMIT
+[0m17:51:09.633317 [debug] [Thread-1 (]: Using postgres connection "model.signalflow.fct_post_lifecycle"
+[0m17:51:09.637304 [debug] [Thread-1 (]: On model.signalflow.fct_post_lifecycle: COMMIT
+[0m17:51:09.663003 [debug] [Thread-1 (]: SQL status: COMMIT in 0.019 seconds
+[0m17:51:09.667880 [debug] [Thread-1 (]: On model.signalflow.fct_post_lifecycle: Close
+[0m17:51:09.672670 [debug] [Thread-1 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': 'c70f4161-2c49-4be6-ab42-834d16f04131', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1d1cdd9d0>]}
+[0m17:51:09.676869 [info ] [Thread-1 (]: 7 of 8 OK created sql incremental model public_analytics.fct_post_lifecycle .... [[32mMERGE 25922[0m in 2.70s]
+[0m17:51:09.681448 [debug] [Thread-1 (]: Finished running node model.signalflow.fct_post_lifecycle
+[0m17:51:09.686792 [debug] [Thread-4 (]: Began running node model.signalflow.fct_sentiment_vs_velocity
+[0m17:51:09.698711 [info ] [Thread-4 (]: 8 of 8 START sql incremental model public_analytics.fct_sentiment_vs_velocity .. [RUN]
+[0m17:51:09.705775 [debug] [Thread-4 (]: Re-using an available connection from the pool (formerly model.signalflow.dim_posts, now model.signalflow.fct_sentiment_vs_velocity)
+[0m17:51:09.715316 [debug] [Thread-4 (]: Began compiling node model.signalflow.fct_sentiment_vs_velocity
+[0m17:51:09.738549 [debug] [Thread-4 (]: Writing injected SQL for node "model.signalflow.fct_sentiment_vs_velocity"
+[0m17:51:09.761612 [debug] [Thread-4 (]: Began executing node model.signalflow.fct_sentiment_vs_velocity
+[0m17:51:09.773402 [debug] [Thread-4 (]: Using postgres connection "model.signalflow.fct_sentiment_vs_velocity"
+[0m17:51:09.776267 [debug] [Thread-4 (]: On model.signalflow.fct_sentiment_vs_velocity: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_sentiment_vs_velocity"} */
+
+    
+  
+    
+
+  create temporary table "fct_sentiment_vs_velocity__dbt_tmp175109768789"
+  
+  
+    as
+  
+  (
+    -- fct_sentiment_vs_velocity.sql
+-- Core analytical question: does a post's initial sentiment predict velocity?
+-- For each post, captures sentiment at ingestion and velocity at
+-- 1h, 3h, 6h intervals after first_seen_at.
+-- This requires joining history snapshots at specific time offsets
+-- which is not possible with the raw TimescaleDB continuous aggregate.
+-- This is the model that justifies DBT in the stack.
+
+
+
+with posts as (
+    select * from "reddit"."public_analytics"."dim_posts"
+
+    
+    where last_polled_at >= now() - interval '2 hours'
+    
+),
+
+history as (
+    select * from "reddit"."public_staging"."stg_metrics_history"
+),
+
+-- for each post, get score at ~1h after first_seen_at
+score_at_1h as (
+    select distinct on (h.post_id)
+        h.post_id,
+        h.score                                         as score_at_1h,
+        h.num_comments                                  as comments_at_1h,
+        h.recorded_at                                   as snapshot_1h_at
+    from history h
+    join posts p on p.post_id = h.post_id
+    where h.recorded_at between p.first_seen_at + interval '45 minutes'
+                            and p.first_seen_at + interval '90 minutes'
+    order by h.post_id, abs(extract(epoch from (
+        h.recorded_at - (p.first_seen_at + interval '1 hour')
+    )))
+),
+
+score_at_3h as (
+    select distinct on (h.post_id)
+        h.post_id,
+        h.score                                         as score_at_3h,
+        h.num_comments                                  as comments_at_3h,
+        h.recorded_at                                   as snapshot_3h_at
+    from history h
+    join posts p on p.post_id = h.post_id
+    where h.recorded_at between p.first_seen_at + interval '2.5 hours'
+                            and p.first_seen_at + interval '3.5 hours'
+    order by h.post_id, abs(extract(epoch from (
+        h.recorded_at - (p.first_seen_at + interval '3 hours')
+    )))
+),
+
+score_at_6h as (
+    select distinct on (h.post_id)
+        h.post_id,
+        h.score                                         as score_at_6h,
+        h.num_comments                                  as comments_at_6h,
+        h.recorded_at                                   as snapshot_6h_at
+    from history h
+    join posts p on p.post_id = h.post_id
+    where h.recorded_at between p.first_seen_at + interval '5.5 hours'
+                            and p.first_seen_at + interval '6.5 hours'
+    order by h.post_id, abs(extract(epoch from (
+        h.recorded_at - (p.first_seen_at + interval '6 hours')
+    )))
+),
+
+final as (
+    select
+        p.post_id,
+        p.subreddit_id,
+        p.first_seen_at,
+        p.age_hours,
+        p.is_trending,
+
+        -- initial sentiment (the predictor variable)
+        p.initial_sentiment_score,
+        p.initial_sentiment_label,
+        p.sentiment_bucket,
+
+        -- score at time intervals (outcome variables)
+        v1.score_at_1h,
+        v1.comments_at_1h,
+
+        v3.score_at_3h,
+        v3.comments_at_3h,
+
+        v6.score_at_6h,
+        v6.comments_at_6h,
+
+        -- current state
+        p.current_score,
+        p.score_velocity                                as current_velocity,
+
+        -- derived: score growth between intervals
+        -- positive = accelerating, null = snapshot not available yet
+        case
+            when v1.score_at_1h is not null and v3.score_at_3h is not null
+            then v3.score_at_3h - v1.score_at_1h
+            else null
+        end                                             as score_growth_1h_to_3h,
+
+        case
+            when v3.score_at_3h is not null and v6.score_at_6h is not null
+            then v6.score_at_6h - v3.score_at_3h
+            else null
+        end                                             as score_growth_3h_to_6h,
+
+        -- data completeness flags
+        (v1.post_id is not null)                        as has_1h_snapshot,
+        (v3.post_id is not null)                        as has_3h_snapshot,
+        (v6.post_id is not null)                        as has_6h_snapshot
+
+    from "reddit"."public_analytics"."fct_post_lifecycle" p
+    left join score_at_1h v1 on v1.post_id = p.post_id
+    left join score_at_3h v3 on v3.post_id = p.post_id
+    left join score_at_6h v6 on v6.post_id = p.post_id
+    where p.age_hours >= 1
+)
+
+select * from final
+  );
+  
+  
+[0m17:51:09.779212 [debug] [Thread-4 (]: Opening a new connection, currently in state closed
+[0m17:51:10.684492 [debug] [Thread-4 (]: SQL status: SELECT 25305 in 0.905 seconds
+[0m17:51:10.702211 [debug] [Thread-4 (]: Using postgres connection "model.signalflow.fct_sentiment_vs_velocity"
+[0m17:51:10.705358 [debug] [Thread-4 (]: On model.signalflow.fct_sentiment_vs_velocity: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_sentiment_vs_velocity"} */
+
+      select
+          column_name,
+          data_type,
+          character_maximum_length,
+          numeric_precision,
+          numeric_scale
+
+      from INFORMATION_SCHEMA.columns
+      where table_name = 'fct_sentiment_vs_velocity__dbt_tmp175109768789'
+        
+      order by ordinal_position
+
+  
+[0m17:51:10.779797 [debug] [Thread-4 (]: SQL status: SELECT 21 in 0.071 seconds
+[0m17:51:10.797840 [debug] [Thread-4 (]: Using postgres connection "model.signalflow.fct_sentiment_vs_velocity"
+[0m17:51:10.820450 [debug] [Thread-4 (]: On model.signalflow.fct_sentiment_vs_velocity: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_sentiment_vs_velocity"} */
+
+      select
+          column_name,
+          data_type,
+          character_maximum_length,
+          numeric_precision,
+          numeric_scale
+
+      from "reddit".INFORMATION_SCHEMA.columns
+      where table_name = 'fct_sentiment_vs_velocity'
+        
+        and table_schema = 'public_analytics'
+        
+      order by ordinal_position
+
+  
+[0m17:51:10.861473 [debug] [Thread-4 (]: SQL status: SELECT 21 in 0.034 seconds
+[0m17:51:10.882264 [debug] [Thread-4 (]: Using postgres connection "model.signalflow.fct_sentiment_vs_velocity"
+[0m17:51:10.886029 [debug] [Thread-4 (]: On model.signalflow.fct_sentiment_vs_velocity: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_sentiment_vs_velocity"} */
+
+      select
+          column_name,
+          data_type,
+          character_maximum_length,
+          numeric_precision,
+          numeric_scale
+
+      from INFORMATION_SCHEMA.columns
+      where table_name = 'fct_sentiment_vs_velocity__dbt_tmp175109768789'
+        
+      order by ordinal_position
+
+  
+[0m17:51:10.918907 [debug] [Thread-4 (]: SQL status: SELECT 21 in 0.029 seconds
+[0m17:51:10.934130 [debug] [Thread-4 (]: Using postgres connection "model.signalflow.fct_sentiment_vs_velocity"
+[0m17:51:10.938754 [debug] [Thread-4 (]: On model.signalflow.fct_sentiment_vs_velocity: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_sentiment_vs_velocity"} */
+
+      select
+          column_name,
+          data_type,
+          character_maximum_length,
+          numeric_precision,
+          numeric_scale
+
+      from "reddit".INFORMATION_SCHEMA.columns
+      where table_name = 'fct_sentiment_vs_velocity'
+        
+        and table_schema = 'public_analytics'
+        
+      order by ordinal_position
+
+  
+[0m17:51:10.968244 [debug] [Thread-4 (]: SQL status: SELECT 21 in 0.025 seconds
+[0m17:51:10.989642 [debug] [Thread-4 (]: 
+    In "reddit"."public_analytics"."fct_sentiment_vs_velocity":
+        Schema changed: False
+        Source columns not in target: []
+        Target columns not in source: []
+        New column types: []
+  
+[0m17:51:10.999405 [debug] [Thread-4 (]: Writing runtime sql for node "model.signalflow.fct_sentiment_vs_velocity"
+[0m17:51:11.032637 [debug] [Thread-4 (]: Using postgres connection "model.signalflow.fct_sentiment_vs_velocity"
+[0m17:51:11.039130 [debug] [Thread-4 (]: On model.signalflow.fct_sentiment_vs_velocity: /* {"app": "dbt", "dbt_version": "1.11.6", "profile_name": "signalflow", "target_name": "dev", "node_id": "model.signalflow.fct_sentiment_vs_velocity"} */
+
+      -- back compat for old kwarg name
+  
+  
+        
+            
+	    
+	    
+            
+        
+    
+
+    
+
+    merge into "reddit"."public_analytics"."fct_sentiment_vs_velocity" as DBT_INTERNAL_DEST
+        using "fct_sentiment_vs_velocity__dbt_tmp175109768789" as DBT_INTERNAL_SOURCE
+        on ((DBT_INTERNAL_SOURCE.post_id = DBT_INTERNAL_DEST.post_id))
+
+    
+    when matched then update set
+        "post_id" = DBT_INTERNAL_SOURCE."post_id","subreddit_id" = DBT_INTERNAL_SOURCE."subreddit_id","first_seen_at" = DBT_INTERNAL_SOURCE."first_seen_at","age_hours" = DBT_INTERNAL_SOURCE."age_hours","is_trending" = DBT_INTERNAL_SOURCE."is_trending","initial_sentiment_score" = DBT_INTERNAL_SOURCE."initial_sentiment_score","initial_sentiment_label" = DBT_INTERNAL_SOURCE."initial_sentiment_label","sentiment_bucket" = DBT_INTERNAL_SOURCE."sentiment_bucket","score_at_1h" = DBT_INTERNAL_SOURCE."score_at_1h","comments_at_1h" = DBT_INTERNAL_SOURCE."comments_at_1h","score_at_3h" = DBT_INTERNAL_SOURCE."score_at_3h","comments_at_3h" = DBT_INTERNAL_SOURCE."comments_at_3h","score_at_6h" = DBT_INTERNAL_SOURCE."score_at_6h","comments_at_6h" = DBT_INTERNAL_SOURCE."comments_at_6h","current_score" = DBT_INTERNAL_SOURCE."current_score","current_velocity" = DBT_INTERNAL_SOURCE."current_velocity","score_growth_1h_to_3h" = DBT_INTERNAL_SOURCE."score_growth_1h_to_3h","score_growth_3h_to_6h" = DBT_INTERNAL_SOURCE."score_growth_3h_to_6h","has_1h_snapshot" = DBT_INTERNAL_SOURCE."has_1h_snapshot","has_3h_snapshot" = DBT_INTERNAL_SOURCE."has_3h_snapshot","has_6h_snapshot" = DBT_INTERNAL_SOURCE."has_6h_snapshot"
+    
+
+    when not matched then insert
+        ("post_id", "subreddit_id", "first_seen_at", "age_hours", "is_trending", "initial_sentiment_score", "initial_sentiment_label", "sentiment_bucket", "score_at_1h", "comments_at_1h", "score_at_3h", "comments_at_3h", "score_at_6h", "comments_at_6h", "current_score", "current_velocity", "score_growth_1h_to_3h", "score_growth_3h_to_6h", "has_1h_snapshot", "has_3h_snapshot", "has_6h_snapshot")
+    values
+        ("post_id", "subreddit_id", "first_seen_at", "age_hours", "is_trending", "initial_sentiment_score", "initial_sentiment_label", "sentiment_bucket", "score_at_1h", "comments_at_1h", "score_at_3h", "comments_at_3h", "score_at_6h", "comments_at_6h", "current_score", "current_velocity", "score_growth_1h_to_3h", "score_growth_3h_to_6h", "has_1h_snapshot", "has_3h_snapshot", "has_6h_snapshot")
+
+
+  
+[0m17:51:11.872516 [debug] [Thread-4 (]: SQL status: MERGE 25305 in 0.830 seconds
+[0m17:51:11.890211 [debug] [Thread-4 (]: On model.signalflow.fct_sentiment_vs_velocity: COMMIT
+[0m17:51:11.898778 [debug] [Thread-4 (]: Using postgres connection "model.signalflow.fct_sentiment_vs_velocity"
+[0m17:51:11.903471 [debug] [Thread-4 (]: On model.signalflow.fct_sentiment_vs_velocity: COMMIT
+[0m17:51:11.959457 [debug] [Thread-4 (]: SQL status: COMMIT in 0.052 seconds
+[0m17:51:11.963964 [debug] [Thread-4 (]: On model.signalflow.fct_sentiment_vs_velocity: Close
+[0m17:51:11.974598 [debug] [Thread-4 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': 'c70f4161-2c49-4be6-ab42-834d16f04131', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1d0352810>]}
+[0m17:51:11.980649 [info ] [Thread-4 (]: 8 of 8 OK created sql incremental model public_analytics.fct_sentiment_vs_velocity  [[32mMERGE 25305[0m in 2.27s]
+[0m17:51:11.986300 [debug] [Thread-4 (]: Finished running node model.signalflow.fct_sentiment_vs_velocity
+[0m17:51:11.998921 [debug] [MainThread]: On master: COMMIT
+[0m17:51:12.002146 [debug] [MainThread]: Using postgres connection "master"
+[0m17:51:12.005031 [debug] [MainThread]: On master: COMMIT
+[0m17:51:12.007300 [debug] [MainThread]: Opening a new connection, currently in state closed
+[0m17:51:12.069361 [debug] [MainThread]: SQL status: COMMIT in 0.062 seconds
+[0m17:51:12.073731 [debug] [MainThread]: On master: Close
+[0m17:51:12.077723 [debug] [MainThread]: Connection 'master' was properly closed.
+[0m17:51:12.082705 [debug] [MainThread]: Connection 'model.signalflow.fct_post_lifecycle' was properly closed.
+[0m17:51:12.086848 [debug] [MainThread]: Connection 'model.signalflow.dim_subreddits' was properly closed.
+[0m17:51:12.089911 [debug] [MainThread]: Connection 'model.signalflow.fct_hourly_engagement' was properly closed.
+[0m17:51:12.092906 [debug] [MainThread]: Connection 'model.signalflow.fct_sentiment_vs_velocity' was properly closed.
+[0m17:51:12.096255 [info ] [MainThread]: 
+[0m17:51:12.100405 [info ] [MainThread]: Finished running 3 incremental models, 2 table models, 3 view models in 0 hours 0 minutes and 17.42 seconds (17.42s).
+[0m17:51:12.110482 [debug] [MainThread]: Command end result
+[0m17:51:12.290102 [debug] [MainThread]: Wrote artifact WritableManifest to /mnt/c/users/gusmc/downloads/xyz/Reddit_signalflow/dbt_signalflow_v2/target/manifest.json
+[0m17:51:12.320699 [debug] [MainThread]: Wrote artifact SemanticManifest to /mnt/c/users/gusmc/downloads/xyz/Reddit_signalflow/dbt_signalflow_v2/target/semantic_manifest.json
+[0m17:51:12.347836 [debug] [MainThread]: Wrote artifact RunExecutionResult to /mnt/c/users/gusmc/downloads/xyz/Reddit_signalflow/dbt_signalflow_v2/target/run_results.json
+[0m17:51:12.350416 [info ] [MainThread]: 
+[0m17:51:12.353594 [info ] [MainThread]: [32mCompleted successfully[0m
+[0m17:51:12.356197 [info ] [MainThread]: 
+[0m17:51:12.359008 [info ] [MainThread]: Done. PASS=8 WARN=0 ERROR=0 SKIP=0 NO-OP=0 TOTAL=8
+[0m17:51:12.361749 [warn ] [MainThread]: [[33mWARNING[0m][DeprecationsSummary]: Deprecated functionality
+Summary of encountered deprecations:
+- MissingArgumentsPropertyInGenericTestDeprecation: 7 occurrences
+To see all deprecation instances instead of just the first occurrence of each,
+run command again with the `--show-all-deprecations` flag. You may also need to
+run with `--no-partial-parse` as some deprecations are only encountered during
+parsing.
+[0m17:51:12.368843 [debug] [MainThread]: Resource report: {"command_name": "run", "command_success": true, "command_wall_clock_time": 59.10622, "process_in_blocks": "25640", "process_kernel_time": 6.135412, "process_mem_max_rss": "130976", "process_out_blocks": "0", "process_user_time": 18.502104}
+[0m17:51:12.372108 [debug] [MainThread]: Command `dbt run` succeeded at 17:51:12.371690 after 59.11 seconds
+[0m17:51:12.374733 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e5be4620>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e3328a40>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7fe1e21b4620>]}
+[0m17:51:12.377272 [debug] [MainThread]: Flushing usage events
+[0m17:51:14.528828 [debug] [MainThread]: An error was encountered while trying to flush usage events

@@ -1,0 +1,13 @@
+signalflow:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: localhost
+      port: 5433          # your local docker-compose host-mapped port
+      dbname: reddit
+      user: reddit
+      password: reddit
+      schema: public      # source schema where raw tables live
+      threads: 4
+      connect_timeout: 10
