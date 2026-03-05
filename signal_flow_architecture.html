@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SignalFlow — Architecture v2</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #f6f8fa;
+  --surf:     #ffffff;
+  --surf2:    #f0f3f6;
+  --border:   #d0d7de;
+  --borderhi: #a8b8c8;
+  --text:     #1a2332;
+  --muted:    #57606a;
+  --muted2:   #8c959f;
+
+  --green:  #1a7f37; --green-d:  #dafbe1;
+  --blue:   #0969da; --blue-d:   #dbeafe;
+  --cyan:   #0e7490; --cyan-d:   #cffafe;
+  --purple: #7c3aed; --purple-d: #ede9fe;
+  --orange: #bc4c00; --orange-d: #fff1e5;
+  --red:    #cf222e; --red-d:    #ffebe9;
+  --yellow: #7d4e00; --yellow-d: #fff8c5;
+  --pink:   #99286e; --pink-d:   #ffeff7;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  min-height: 100vh;
+}
+
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background:
+    radial-gradient(ellipse 800px 500px at 20% 0%, rgba(9,105,218,0.04) 0%, transparent 70%),
+    radial-gradient(ellipse 600px 400px at 80% 100%, rgba(26,127,55,0.03) 0%, transparent 70%);
+  pointer-events:none; z-index:0;
+}
+
+.wrap { position:relative; z-index:1; max-width:1020px; margin:0 auto; padding:44px 24px 80px; }
+
+/* ── HEADER ── */
+header { margin-bottom:44px; }
+.header-top { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:16px; }
+h1 { font-family:'Syne',sans-serif; font-size:30px; font-weight:800; color:#1a2332; letter-spacing:-1.5px; line-height:1; }
+h1 em { color:var(--blue); font-style:normal; }
+.subtitle { font-size:10px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-top:6px; }
+
+.badges { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.badge { padding:3px 10px; border-radius:4px; font-size:9px; font-weight:700; letter-spacing:0.8px; border:1px solid; }
+.b-green  { background:var(--green-d);  color:var(--green);  border-color:var(--green); }
+.b-blue   { background:var(--blue-d);   color:var(--blue);   border-color:var(--blue); }
+.b-orange { background:var(--orange-d); color:var(--orange); border-color:var(--orange); }
+.b-purple { background:var(--purple-d); color:var(--purple); border-color:var(--purple); }
+.b-cyan   { background:var(--cyan-d);   color:var(--cyan);   border-color:var(--cyan); }
+.b-yellow { background:var(--yellow-d); color:var(--yellow); border-color:var(--yellow); }
+.b-red    { background:var(--red-d);    color:var(--red);    border-color:var(--red); }
+.b-pink   { background:var(--pink-d);   color:var(--pink);   border-color:var(--pink); }
+
+/* legend strip */
+.legend-strip {
+  display:flex; gap:0; border:1px solid var(--border); border-radius:8px; overflow:hidden;
+  background:var(--surf);
+}
+.ls-item {
+  flex:1; padding:8px 10px; display:flex; align-items:center; gap:7px;
+  border-right:1px solid var(--border); cursor:pointer; transition:background 0.15s;
+  min-width:0;
+}
+.ls-item:last-child { border-right:none; }
+.ls-item:hover { background:var(--surf2); }
+.ls-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.ls-label { font-size:9px; color:var(--muted); font-weight:600; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* ── TIMELINE ── */
+.timeline { position:relative; }
+
+/* vertical spine */
+.timeline::before {
+  content:'';
+  position:absolute;
+  left:24px; top:0; bottom:0; width:1px;
+  background: linear-gradient(to bottom,
+    var(--green) 0%,
+    var(--blue) 20%,
+    var(--cyan) 35%,
+    var(--purple) 55%,
+    var(--blue) 65%,
+    var(--yellow) 75%,
+    var(--blue) 82%,
+    var(--orange) 90%,
+    var(--pink) 100%
+  );
+  opacity:0.4;
+}
+
+/* ── STEP ── */
+.step { display:flex; gap:0; margin-bottom:6px; position:relative; }
+
+.step-spine {
+  width:48px; flex-shrink:0;
+  display:flex; flex-direction:column; align-items:center;
+  padding-top:14px;
+}
+
+.step-node {
+  width:18px; height:18px; border-radius:50%;
+  border:2px solid; background:var(--bg);
+  display:flex; align-items:center; justify-content:center;
+  font-size:7px; font-weight:700;
+  position:relative; z-index:2;
+  transition:transform 0.15s, box-shadow 0.15s;
+  cursor:pointer;
+  flex-shrink:0;
+}
+
+.step.open .step-node { transform:scale(1.2); }
+
+.step-card {
+  flex:1;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:var(--surf);
+  overflow:hidden;
+  transition:border-color 0.2s, box-shadow 0.2s;
+  margin-bottom:2px;
+}
+
+.step.open .step-card {
+  box-shadow: 0 0 0 1px var(--accent), 0 4px 32px rgba(0,0,0,0.4);
+  border-color: var(--accent);
+}
+
+.step-header {
+  display:flex; align-items:center; gap:12px;
+  padding:12px 16px; cursor:pointer; user-select:none;
+}
+
+.step-num {
+  font-size:9px; font-weight:700; color:var(--accent);
+  min-width:20px;
+}
+
+.step-icon { font-size:15px; flex-shrink:0; }
+
+.step-info { flex:1; min-width:0; }
+.step-title { font-family:'Syne',sans-serif; font-size:13px; font-weight:700; color:#1a2332; }
+.step-meta  { font-size:9px; color:var(--muted); margin-top:2px; }
+
+.step-tags { display:flex; gap:5px; flex-wrap:wrap; flex-shrink:0; }
+.tag { padding:2px 7px; border-radius:3px; font-size:8px; font-weight:700; letter-spacing:0.4px; border:1px solid; }
+
+.chevron { color:var(--muted); font-size:10px; transition:transform 0.2s; flex-shrink:0; }
+.step.open .chevron { transform:rotate(180deg); }
+
+/* step body */
+.step-body {
+  display:none;
+  border-top:1px solid var(--border);
+  padding:16px;
+  animation:slideIn 0.15s ease;
+}
+.step.open .step-body { display:block; }
+
+@keyframes slideIn {
+  from { opacity:0; transform:translateY(-6px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+/* dual path container */
+.dual-path {
+  display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;
+}
+
+.path-box {
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:12px 14px;
+}
+
+.path-title {
+  font-size:9px; font-weight:700; letter-spacing:0.8px;
+  text-transform:uppercase; margin-bottom:10px;
+  display:flex; align-items:center; gap:6px;
+}
+
+.path-title::before {
+  content:'';
+  width:8px; height:2px; border-radius:1px;
+  background:currentColor;
+}
+
+.flow-step {
+  display:flex; align-items:flex-start; gap:8px;
+  margin-bottom:7px; font-size:10px; color:var(--muted); line-height:1.5;
+}
+
+.flow-step:last-child { margin-bottom:0; }
+
+.flow-arrow { color:var(--accent); flex-shrink:0; margin-top:1px; }
+
+.flow-fn {
+  color:#1a2332; font-weight:500;
+}
+
+.flow-detail { color:var(--muted); }
+.flow-result { color:var(--cyan); font-weight:500; }
+.flow-new { color:var(--green); font-size:8px; font-weight:700; background:var(--green-d); padding:1px 5px; border-radius:3px; margin-left:4px; }
+
+/* code block */
+.code-block {
+  background:#1e2837;
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:10px 14px;
+  font-size:10px;
+  line-height:1.7;
+  margin-bottom:10px;
+  overflow-x:auto;
+  color:#c9d1d9;
+}
+
+.c-fn    { color:#58a6ff; }
+.c-str   { color:#f0883e; }
+.c-val   { color:#3fb950; }
+.c-cmt   { color:#8b949e; font-style:italic; }
+.c-key   { color:#bc8cff; }
+.c-new   { color:#e3b341; }
+
+/* topic grid */
+.topic-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px,1fr)); gap:8px; margin-bottom:12px; }
+.topic-item {
+  background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:9px 11px;
+  display:flex; justify-content:space-between; align-items:center; gap:8px;
+}
+.topic-name { font-size:10px; color:var(--cyan); font-weight:500; }
+.topic-stat { font-size:9px; color:var(--muted); white-space:nowrap; }
+
+/* db table */
+.db-table { width:100%; border-collapse:collapse; margin-bottom:10px; }
+.db-table th {
+  font-size:9px; color:var(--muted); font-weight:600; letter-spacing:0.8px;
+  text-align:left; padding:6px 10px; border-bottom:1px solid var(--border); text-transform:uppercase;
+}
+.db-table td {
+  font-size:10px; padding:7px 10px; border-bottom:1px solid var(--border);
+  vertical-align:top; line-height:1.5;
+}
+.db-table tr:last-child td { border-bottom:none; }
+.db-table tr:hover td { background:var(--surf2); }
+.col-name { color:var(--blue); font-weight:500; }
+.col-type { color:var(--purple); }
+.col-note { color:var(--muted); }
+
+/* endpoint rows */
+.endpoint-list { display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
+.ep {
+  background:var(--bg); border:1px solid var(--border); border-radius:6px;
+  padding:9px 13px; display:flex; align-items:center; gap:10px;
+}
+.ep-method {
+  font-size:8px; font-weight:700; padding:2px 6px; border-radius:3px; flex-shrink:0;
+  letter-spacing:0.5px;
+}
+.ep-path { font-size:11px; color:var(--blue); flex:1; }
+.ep-desc { font-size:10px; color:var(--muted); }
+
+/* note box */
+.note {
+  background:var(--bg); border:1px solid var(--border); border-left:3px solid;
+  border-radius:0 6px 6px 0; padding:10px 14px;
+  font-size:10px; color:var(--muted); line-height:1.7; margin-top:8px;
+}
+
+/* grafana panels */
+.grafana-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.grafana-panel {
+  background:var(--bg); border:1px solid var(--border); border-radius:7px; padding:11px 13px;
+}
+.gp-title { font-size:10px; font-weight:600; color:#1a2332; margin-bottom:5px; display:flex; align-items:center; gap:6px; }
+.gp-src { font-size:9px; color:var(--muted); }
+
+/* refresh badge on step */
+.refresh-label {
+  position:absolute; right:16px; top:12px;
+  font-size:8px; font-weight:700; color:var(--yellow);
+  background:var(--yellow-d); border:1px solid var(--yellow);
+  padding:2px 7px; border-radius:3px; letter-spacing:0.5px;
+  pointer-events:none;
+}
+
+/* watermark timestamp connector */
+.time-connector {
+  display:flex; align-items:center; gap:8px; padding:4px 0 4px 48px;
+  font-size:9px; color:var(--muted);
+}
+.time-connector::before {
+  content:'';
+  width:14px; height:1px; background:var(--borderhi);
+}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- HEADER -->
+<header>
+  <div class="header-top">
+    <div>
+      <h1>Signal<em>Flow</em></h1>
+    </div>
+  </div>
+  <div class="legend-strip">
+    <div class="ls-item" onclick="openStep('s1')"><span class="ls-dot" style="background:var(--green)"></span><span class="ls-label">Ingestion</span></div>
+    <div class="ls-item" onclick="openStep('s2')"><span class="ls-dot" style="background:var(--cyan)"></span><span class="ls-label">Kafka</span></div>
+    <div class="ls-item" onclick="openStep('s3')"><span class="ls-dot" style="background:var(--purple)"></span><span class="ls-label">Processing</span></div>
+    <div class="ls-item" onclick="openStep('s4')"><span class="ls-dot" style="background:var(--blue)"></span><span class="ls-label">Postgres</span></div>
+    <div class="ls-item" onclick="openStep('s5')"><span class="ls-dot" style="background:var(--yellow)"></span><span class="ls-label">Topic Agg</span></div>
+    <div class="ls-item" onclick="openStep('s6')"><span class="ls-dot" style="background:var(--green)"></span><span class="ls-label">Refresh</span></div>
+    <div class="ls-item" onclick="openStep('s7')"><span class="ls-dot" style="background:var(--orange)"></span><span class="ls-label">WebSocket</span></div>
+    <div class="ls-item" onclick="openStep('s8')"><span class="ls-dot" style="background:var(--pink)"></span><span class="ls-label">Grafana</span></div>
+  </div>
+</header>
+
+<div class="timeline">
+
+<!-- ── STEP 1: INGESTION ── -->
+<div class="step" id="s1" style="--accent:var(--green)">
+  <div class="step-spine">
+    <div class="step-node" style="border-color:var(--green);color:var(--green)" onclick="toggle('s1')">1</div>
+  </div>
+  <div class="step-card">
+    <div class="step-header" onclick="toggle('s1')">
+      <span class="step-num">STEP 01</span>
+      <span class="step-icon">⬇</span>
+      <div class="step-info">
+        <div class="step-title">Ingestion — New Post Detected</div>
+        <div class="step-meta">poll_subreddit() · priority: aggressive · dual producer.send()</div>
+      </div>
+      <div class="step-tags">
+        <span class="tag b-green">asyncio</span>
+        <span class="tag b-green">aiokafka</span>
+        <span class="tag b-green">asyncpraw</span>
+      </div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="step-body">
+      <div class="code-block">
+<span class="c-cmt"># Post r/technology ID: xyz789 — first seen</span>
+<span class="c-fn">poll_subreddit</span>() → xyz789 <span class="c-key">not in</span> seen_ids → priority = <span class="c-str">"aggressive"</span>
+
+<span class="c-cmt">── Legacy path (unchanged) ──────────────────────</span>
+<span class="c-fn">producer</span>.<span class="c-fn">send</span>(<span class="c-str">"reddit.posts.raw"</span>, post)
+
+<span class="c-cmt">── NEW unified path ─────────────────────────────</span>
+signal = <span class="c-fn">normalise</span>(post)   <span class="c-cmt"># schema-agnostic signal object</span>
+<span class="c-fn">producer</span>.<span class="c-fn">send</span>(<span class="c-str">"signals.normalised"</span>, signal) <span class="c-new">NEW</span>
+      </div>
+      <div class="dual-path">
+        <div class="path-box">
+          <div class="path-title" style="color:var(--muted)">Legacy Path</div>
+          <div class="flow-step"><span class="flow-arrow">→</span><span><span class="flow-fn">reddit.posts.raw</span><br><span class="flow-detail">raw Reddit schema · unchanged</span></span></div>
+          <div class="flow-step"><span class="flow-arrow">→</span><span><span class="flow-detail">title, score, author, subreddit, url</span></span></div>
+        </div>
+        <div class="path-box" style="border-color:var(--green)">
+          <div class="path-title" style="color:var(--green)">New Unified Path <span class="flow-new">NEW</span></div>
+          <div class="flow-step"><span class="flow-arrow" style="color:var(--green)">→</span><span><span class="flow-fn">signals.normalised</span><br><span class="flow-detail">platform-agnostic schema</span></span></div>
+          <div class="flow-step"><span class="flow-arrow" style="color:var(--green)">→</span><span><span class="flow-detail">source_id, platform, title, body, raw_score, ts</span></span></div>
+        </div>
+      </div>
+      <div class="note" style="border-color:var(--green)">
+        Both topics produced in the same ingestion task. <strong style="color:var(--green)">signals.normalised</strong> is platform-agnostic — Reddit, HackerNews, Bluesky, YouTube all write the same schema. Downstream consumers read one topic instead of four.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="time-connector">kafka partition assignment</div>
+
+<!-- ── STEP 2: KAFKA ── -->
+<div class="step" id="s2" style="--accent:var(--cyan)">
+  <div class="step-spine">
+    <div class="step-node" style="border-color:var(--cyan);color:var(--cyan)" onclick="toggle('s2')">2</div>
+  </div>
+  <div class="step-card">
+    <div class="step-header" onclick="toggle('s2')">
+      <span class="step-num">STEP 02</span>
+      <span class="step-icon">⚡</span>
+      <div class="step-info">
+        <div class="step-title">Kafka — Partition Routing</div>
+        <div class="step-meta">hash(xyz789) % N · RF=3 · minISR=2 · Snappy compression</div>
+      </div>
+      <div class="step-tags">
+        <span class="tag b-cyan">3 brokers</span>
+        <span class="tag b-cyan">RF=3</span>
+        <span class="tag b-cyan">minISR=2</span>
+      </div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="step-body">
+      <div class="code-block">
+reddit.posts.raw    → partition <span class="c-fn">hash</span>(<span class="c-str">"xyz789"</span>) % <span class="c-val">3</span>   → partition <span class="c-val">1</span>
+signals.normalised  → partition <span class="c-fn">hash</span>(<span class="c-str">"xyz789"</span>) % <span class="c-val">6</span>   → partition <span class="c-val">3</span>
+      </div>
+      <div class="topic-grid">
+        <div class="topic-item"><span class="topic-name">reddit.posts.raw</span><span class="topic-stat">3 partitions</span></div>
+        <div class="topic-item"><span class="topic-name">reddit.posts.refresh</span><span class="topic-stat">3 partitions</span></div>
+        <div class="topic-item"><span class="topic-name">hackernews.stories.raw</span><span class="topic-stat">3 partitions</span></div>
+        <div class="topic-item"><span class="topic-name">bluesky.posts.raw</span><span class="topic-stat">6 partitions</span></div>
+        <div class="topic-item"><span class="topic-name">youtube.comments.raw</span><span class="topic-stat">3 partitions</span></div>
+        <div class="topic-item" style="border-color:var(--cyan)"><span class="topic-name" style="color:var(--yellow)">signals.normalised</span><span class="topic-stat" style="color:var(--cyan)">6 · unified ★</span></div>
+        <div class="topic-item"><span class="topic-name" style="color:var(--red)">*.dlq</span><span class="topic-stat">1 each</span></div>
+      </div>
+      <div class="note" style="border-color:var(--cyan)">
+        Same post ID hashes to the same partition every time — ordering guaranteed per post across its lifecycle (raw → refresh). <strong style="color:var(--cyan)">signals.normalised has 6 partitions</strong> because all 4 sources write to it — higher throughput needed. RF=3 + minISR=2 means no acknowledged write is ever on fewer than 2 brokers simultaneously.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="time-connector">consumer group picks up · micro-batch window opens</div>
+
+<!-- ── STEP 3: PROCESSING ── -->
+<div class="step" id="s3" style="--accent:var(--purple)">
+  <div class="step-spine">
+    <div class="step-node" style="border-color:var(--purple);color:var(--purple)" onclick="toggle('s3')">3</div>
+  </div>
+  <div class="step-card">
+    <div class="step-header" onclick="toggle('s3')">
+      <span class="step-num">STEP 03</span>
+      <span class="step-icon">⚙</span>
+      <div class="step-info">
+        <div class="step-title">Processing — Dual Path</div>
+        <div class="step-meta">×3 replicas · flush_batches() legacy + flush_signal_batch() new · parallel</div>
+      </div>
+      <div class="step-tags">
+        <span class="tag b-purple">VADER</span>
+        <span class="tag b-purple">spaCy NER</span>
+        <span class="tag b-purple">×3 replicas</span>
+      </div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="step-body">
+      <div class="dual-path">
+        <div class="path-box">
+          <div class="path-title" style="color:var(--muted)">Legacy Path — reddit.posts.raw</div>
+          <div class="flow-step"><span class="flow-arrow">→</span><span><span class="flow-fn">flush_batches()</span></span></div>
+          <div class="flow-step"><span class="flow-arrow">→</span><span><span class="flow-fn">sentiment</span>(title) <span class="flow-result">→ 0.34</span></span></div>
+          <div class="flow-step"><span class="flow-arrow">→</span><span><span class="flow-fn">keywords</span> <span class="flow-result">→ ["breakthrough", "quantum", "computing"]</span></span></div>
+          <div class="flow-step"><span class="flow-arrow">→</span><span><span class="flow-fn">bulk_upsert_posts()</span></span></div>
+          <div class="flow-step"><span class="flow-arrow">→</span><span><span class="flow-fn">bulk_upsert_nlp_features()</span></span></div>
+        </div>
+        <div class="path-box" style="border-color:var(--purple)">
+          <div class="path-title" style="color:var(--purple)">New Path — signals.normalised <span class="flow-new">NEW</span></div>
+          <div class="flow-step"><span class="flow-arrow" style="color:var(--purple)">→</span><span><span class="flow-fn">flush_signal_batch()</span></span></div>
+          <div class="flow-step"><span class="flow-arrow" style="color:var(--purple)">→</span><span><span class="flow-fn">sentiment</span>(title+body) <span class="flow-result">→ VADER compound</span></span></div>
+          <div class="flow-step"><span class="flow-arrow" style="color:var(--purple)">→</span><span><span class="flow-fn">extract_topics_batch()</span> → spaCy NER <span class="flow-result">→ ["quantum computing", "ibm"]</span></span></div>
+          <div class="flow-step"><span class="flow-arrow" style="color:var(--purple)">→</span><span><span class="flow-fn">keywords</span> → word frequency filter</span></div>
+          <div class="flow-step"><span class="flow-arrow" style="color:var(--purple)">→</span><span><span class="flow-fn">bulk_upsert_signals()</span> <span style="color:var(--green);font-size:9px">→ signals table</span></span></div>
+          <div class="flow-step"><span class="flow-arrow" style="color:var(--purple)">→</span><span><span class="flow-fn">bulk_upsert_signal_nlp()</span> <span style="color:var(--green);font-size:9px">→ topics + sentiment</span></span></div>
+          <div class="flow-step"><span class="flow-arrow" style="color:var(--purple)">→</span><span><span class="flow-fn">calculate_velocity()</span></span></div>
+          <div class="flow-step"><span class="flow-arrow" style="color:var(--purple)">→</span><span><span class="flow-fn">compute_trending()</span></span></div>
+          <div class="flow-step"><span class="flow-arrow" style="color:var(--purple)">→</span><span><span class="flow-fn">bulk_insert_signal_metrics_history()</span></span></div>
+        </div>
+      </div>
+      <div class="note" style="border-color:var(--purple)">
+        Both paths run in parallel — same consumer group, different topics. Legacy path keeps existing reddit pipeline untouched. New path processes <strong style="color:var(--purple)">title + body</strong> (not just title) for richer sentiment. spaCy NER extracts named entities as structured topics, not just keyword frequency.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="time-connector">WAL streams to replica within milliseconds</div>
+
+<!-- ── STEP 4: POSTGRES ── -->
+<div class="step" id="s4" style="--accent:var(--blue)">
+  <div class="step-spine">
+    <div class="step-node" style="border-color:var(--blue);color:var(--blue)" onclick="toggle('s4')">4</div>
+  </div>
+  <div class="step-card">
+    <div class="step-header" onclick="toggle('s4')">
+      <span class="step-num">STEP 04</span>
+      <span class="step-icon">🗄</span>
+      <div class="step-info">
+        <div class="step-title">PostgreSQL — Signals Table Populated</div>
+        <div class="step-meta">TimescaleDB primary · WAL → replica · ReadReplicaRouter for ORM reads</div>
+      </div>
+      <div class="step-tags">
+        <span class="tag b-blue">TimescaleDB</span>
+        <span class="tag b-blue">WAL stream</span>
+      </div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="step-body">
+      <table class="db-table">
+        <thead>
+          <tr><th>table</th><th>column</th><th>type</th><th>populated by</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="col-name">signals</td><td>topics</td><td class="col-type">jsonb</td><td class="col-note">bulk_upsert_signal_nlp() ← spaCy NER</td></tr>
+          <tr><td class="col-name">signals</td><td>sentiment_compound</td><td class="col-type">float</td><td class="col-note">VADER on title+body</td></tr>
+          <tr><td class="col-name">signals</td><td>trending_score</td><td class="col-type">float</td><td class="col-note">compute_trending()</td></tr>
+          <tr><td class="col-name">signals</td><td>velocity</td><td class="col-type">float</td><td class="col-note">calculate_velocity()</td></tr>
+          <tr><td class="col-name">signal_metrics_history</td><td>score, velocity, ts</td><td class="col-type">hypertable</td><td class="col-note">bulk_insert_signal_metrics_history()</td></tr>
+          <tr><td class="col-name" style="color:var(--yellow)">S3 archive</td><td>signal batches</td><td class="col-type" style="color:var(--yellow)">Parquet</td><td class="col-note">raw signal payloads archived to S3 after flush · eu-north-1 · 90 day retention mirrors TimescaleDB</td></tr>
+        </tbody>
+      </table>
+      <div class="note" style="border-color:var(--blue)">
+        <strong style="color:var(--blue)">ReadReplicaRouter</strong> in Django routes all <code style="color:var(--cyan)">db_for_read()</code> to the replica, <code style="color:var(--cyan)">db_for_write()</code> to primary. Django ORM never touches the primary for reads — replica handles all API query load. WAL replication lag is typically &lt;50ms on local network.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="time-connector">topic aggregator polls every 60s · watermark advances</div>
+
+<!-- ── STEP 5: TOPIC AGGREGATOR ── -->
+<div class="step" id="s5" style="--accent:var(--yellow)">
+  <div class="step-spine">
+    <div class="step-node" style="border-color:var(--yellow);color:var(--yellow)" onclick="toggle('s5')">5</div>
+  </div>
+  <div class="step-card">
+    <div class="step-header" onclick="toggle('s5')">
+      <span class="step-num">STEP 05</span>
+      <span class="step-icon">◎</span>
+      <div class="step-info">
+        <div class="step-title">Topic Aggregator — Separate Container</div>
+        <div class="step-meta">every 60s · watermark-based · cross-platform event detection</div>
+      </div>
+      <div class="step-tags">
+        <span class="tag b-yellow">60s cycle</span>
+        <span class="tag b-yellow">watermark</span>
+        <span class="tag b-yellow">cross-platform</span>
+      </div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="step-body">
+      <div class="code-block">
+<span class="c-cmt">── Every 60 seconds ─────────────────────────────────────</span>
+<span class="c-fn">_poll_signals_from_db</span>()
+  → SELECT * FROM signals WHERE last_updated_at >= <span class="c-key">watermark</span>
+  → <span class="c-val">watermark</span> advances after each successful flush
+
+<span class="c-fn">_accumulate</span>()
+  → buckets by (topic, platform, 15min window)
+  → aggregates: count, avg_score, avg_sentiment, avg_velocity
+
+<span class="c-fn">_flush_to_db</span>()
+  → UPSERT <span class="c-str">topic_timeseries</span>
+
+<span class="c-fn">_detect_cross_platform_events</span>()
+  → IF topic seen on 2+ platforms in same window
+  → INSERT <span class="c-str">cross_platform_events</span> (topic, platforms[], delta_score, ts)
+      </div>
+      <div class="note" style="border-color:var(--yellow)">
+        Runs as an <strong style="color:var(--yellow)">independent container</strong> — not inside Django, not inside the processing service. Failure here doesn't affect ingestion or API serving. Watermark prevents reprocessing already-aggregated signals. Cross-platform events only fire when the same topic surfaces on 2+ platforms in the same 15-minute bucket.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="time-connector">5 minutes pass · post score climbs to 1200</div>
+
+<!-- ── STEP 6: REFRESH ── -->
+<div class="step" id="s6" style="--accent:var(--green)">
+  <div class="step-spine">
+    <div class="step-node" style="border-color:var(--green);color:var(--green)" onclick="toggle('s6')">6</div>
+  </div>
+  <div class="step-card">
+    <div class="step-header" onclick="toggle('s6')">
+      <span class="step-num">STEP 06</span>
+      <span class="step-icon">↻</span>
+      <div class="step-info">
+        <div class="step-title">Ingestion Refresh + Velocity Calculation</div>
+        <div class="step-meta">5 min later · score 45→1200 · comment_velocity computed · dual path again</div>
+      </div>
+      <div class="step-tags">
+        <span class="tag b-yellow">+5 min</span>
+        <span class="tag b-green">velocity</span>
+      </div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="step-body">
+      <div class="code-block">
+<span class="c-cmt">── Ingestion picks up updated post ──────────────────────</span>
+<span class="c-fn">producer</span>.<span class="c-fn">send</span>(<span class="c-str">"reddit.posts.refresh"</span>, updated_post)
+<span class="c-fn">producer</span>.<span class="c-fn">send</span>(<span class="c-str">"signals.normalised"</span>, updated_signal)
+
+<span class="c-cmt">── Processing calculates velocity ──────────────────────</span>
+score_velocity   = (<span class="c-val">1200</span> - <span class="c-val">45</span>) / <span class="c-val">300</span>  = <span class="c-val">3.85</span>/s
+comment_velocity = (<span class="c-val">45</span>   - <span class="c-val">2</span>)  / <span class="c-val">300</span>  = <span class="c-val">0.14</span>/s
+
+trending_score → <span class="c-fn">compute_trending</span>(velocity, normalised_score, recency_decay)
+
+<span class="c-cmt">── Writes back to signals table ─────────────────────────</span>
+<span class="c-fn">bulk_upsert_signals</span>()  <span class="c-cmt"># updates velocity + trending_score</span>
+      </div>
+      <div class="note" style="border-color:var(--green)">
+        Same dual-path logic as Step 3 — refresh topic triggers the same processing pipeline. <strong style="color:var(--green)">velocity = Δscore / Δtime</strong> in seconds. trending_score weights velocity heavily — a post gaining 1000 points in 5 minutes ranks above a post with 5000 points gained over 3 days.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="time-connector">Redis publish · Channels layer picks up</div>
+
+<!-- ── STEP 7: WEBSOCKET ── -->
+<div class="step" id="s7" style="--accent:var(--orange)">
+  <div class="step-spine">
+    <div class="step-node" style="border-color:var(--orange);color:var(--orange)" onclick="toggle('s7')">7</div>
+  </div>
+  <div class="step-card">
+    <div class="step-header" onclick="toggle('s7')">
+      <span class="step-num">STEP 07</span>
+      <span class="step-icon">⬡</span>
+      <div class="step-info">
+        <div class="step-title">Django / Daphne ASGI — Live Push</div>
+        <div class="step-meta">Redis DB2 pub/sub → Django Channels → WebSocket clients</div>
+      </div>
+      <div class="step-tags">
+        <span class="tag b-orange">ASGI</span>
+        <span class="tag b-orange">Channels</span>
+        <span class="tag b-cyan">WS push</span>
+      </div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="step-body">
+      <div class="code-block">
+<span class="c-cmt">── Processing service publishes after bulk upsert ────────</span>
+redis.<span class="c-fn">publish</span>(<span class="c-str">"asgi:group:posts_feed"</span>, signal_payload)
+
+<span class="c-cmt">── Django Channels consumer receives ─────────────────────</span>
+<span class="c-key">class</span> <span class="c-fn">SignalConsumer</span>(AsyncWebsocketConsumer):
+  <span class="c-key">async def</span> <span class="c-fn">signal_update</span>(self, event):
+    <span class="c-key">await</span> self.<span class="c-fn">send</span>(<span class="c-fn">json.dumps</span>(event[<span class="c-str">"payload"</span>]))
+
+<span class="c-cmt">── Client dashboard updates ──────────────────────────────</span>
+score: <span class="c-val">45</span> → <span class="c-val">1200</span>   velocity badge: <span class="c-val">3.85</span>/s   trending: <span class="c-val">★ RISING</span>
+      </div>
+      <div class="endpoint-list">
+        <div class="ep" style="border-color:var(--yellow);margin-bottom:4px"><span class="ep-method" style="background:var(--yellow-d);color:var(--yellow);border:1px solid var(--yellow)">AUTH</span><span class="ep-path" style="color:var(--yellow);font-size:10px;font-weight:600">JWT — required for all endpoints below</span><span class="ep-desc">POST /api/token/ → {access, refresh} · access expires 60min · POST /api/token/refresh/ to rotate</span></div>
+        <div class="ep"><span class="ep-method" style="background:var(--green-d);color:var(--green);border:1px solid var(--green)">GET</span><span class="ep-path">/api/v1/signals/</span><span class="ep-desc">cross-platform feed · paginated · 30s Redis cache</span></div>
+        <div class="ep"><span class="ep-method" style="background:var(--green-d);color:var(--green);border:1px solid var(--green)">GET</span><span class="ep-path">/api/v1/pulse/</span><span class="ep-desc">topic sentiment summary · VADER + NER entities</span></div>
+        <div class="ep"><span class="ep-method" style="background:var(--green-d);color:var(--green);border:1px solid var(--green)">GET</span><span class="ep-path">/api/v1/trending/</span><span class="ep-desc">velocity-ranked cross-platform trending</span></div>
+        <div class="ep"><span class="ep-method" style="background:var(--green-d);color:var(--green);border:1px solid var(--green)">GET</span><span class="ep-path">/api/v1/compare/</span><span class="ep-desc">divergence events · platform delta scores</span></div>
+        <div class="ep"><span class="ep-method" style="background:var(--cyan-d);color:var(--cyan);border:1px solid var(--cyan)">WS</span><span class="ep-path" style="color:var(--cyan)">ws://localhost:8000/ws/signals/</span><span class="ep-desc">real-time push · no polling · Redis DB2 pub/sub</span></div>
+        <div class="ep"><span class="ep-method" style="background:var(--muted2);color:var(--muted);border:1px solid var(--muted)">GET</span><span class="ep-path" style="color:var(--muted)">/health/</span><span class="ep-desc">health check · no auth required · no DB query</span></div>
+      </div>
+      <div class="note" style="border-color:var(--orange)">
+        Daphne serves HTTP and WebSocket on the same ASGI process. REST responses cached in <strong style="color:var(--red)">Redis DB1</strong> at 30s TTL — expires automatically, not explicitly invalidated on flush. WebSocket bypasses the cache entirely — always live from Redis DB2 pub/sub channel layer. All REST endpoints require <strong style="color:var(--yellow)">Authorization: Bearer &lt;access_token&gt;</strong> header.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="time-connector">Grafana scrapes every 60s · dashboards refresh</div>
+
+<!-- ── STEP 8: GRAFANA ── -->
+<div class="step" id="s8" style="--accent:var(--pink)">
+  <div class="step-spine">
+    <div class="step-node" style="border-color:var(--pink);color:var(--pink)" onclick="toggle('s8')">8</div>
+  </div>
+  <div class="step-card">
+    <div class="step-header" onclick="toggle('s8')">
+      <span class="step-num">STEP 08</span>
+      <span class="step-icon">📊</span>
+      <div class="step-info">
+        <div class="step-title">Grafana — Observability Layer</div>
+        <div class="step-meta">1 min refresh · Postgres replica + Prometheus · 6 panels</div>
+      </div>
+      <div class="step-tags">
+        <span class="tag b-pink">1min refresh</span>
+        <span class="tag b-pink">4 panels</span>
+      </div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="step-body">
+      <div class="grafana-grid">
+        <div class="grafana-panel">
+          <div class="gp-title">📈 Topic Traction Timeline</div>
+          <div class="gp-src">source: topic_timeseries · 15min buckets · line chart per topic</div>
+        </div>
+        <div class="grafana-panel">
+          <div class="gp-title">🌡 Lead/Lag Heatmap</div>
+          <div class="gp-src">source: cross_platform_events · platform × topic matrix · colour = delta_score</div>
+        </div>
+        <div class="grafana-panel">
+          <div class="gp-title">🔥 Trending Topic Cards</div>
+          <div class="gp-src">source: trending_topics_24h VIEW · stat panels · velocity + score</div>
+        </div>
+        <div class="grafana-panel">
+          <div class="gp-title">📊 Top Topics by Platform</div>
+          <div class="gp-src">source: topic_leaderboard_2h VIEW · bar chart · grouped by platform</div>
+        </div>
+        <div class="grafana-panel" style="border-color:var(--orange)">
+          <div class="gp-title" style="color:var(--orange)">⚡ Pipeline Throughput</div>
+          <div class="gp-src">source: Prometheus · scrapes ×3 processing replicas port 8000 every 15s · messages/sec · batch flush latency P99</div>
+        </div>
+        <div class="grafana-panel" style="border-color:var(--red)">
+          <div class="gp-title" style="color:var(--red)">🚨 DLQ Rate</div>
+          <div class="gp-src">source: Prometheus · reddit_processor_dlq_messages_total · should be 0 sustained — any non-zero rate = data loss in progress</div>
+        </div>
+      </div>
+      <div class="note" style="border-color:var(--pink)">
+        Grafana has two datasources: <strong style="color:var(--blue)">Postgres replica</strong> for topic/signal panels and <strong style="color:var(--orange)">Prometheus</strong> for pipeline health panels (scrapes all 3 processing replicas on port 8000 every 15s). Both provisioned automatically via <code style="color:var(--cyan)">grafana/provisioning/</code> — no manual setup needed. <code style="color:var(--cyan)">trending_topics_24h</code> and <code style="color:var(--cyan)">topic_leaderboard_2h</code> are regular views — they recompute on each query. Promote to <code style="color:var(--cyan)">MATERIALIZED VIEW</code> with a refresh job if query latency becomes an issue at scale.
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /timeline -->
+
+</div><!-- /wrap -->
+
+<script>
+function toggle(id) {
+  const el = document.getElementById(id);
+  const isOpen = el.classList.contains('open');
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('open'));
+  if (!isOpen) el.classList.add('open');
+}
+
+function openStep(id) {
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('open'));
+  document.getElementById(id).classList.add('open');
+  document.getElementById(id).scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// open step 1 on load
+document.getElementById('s1').classList.add('open');
+</script>
+</body>
+</html>
