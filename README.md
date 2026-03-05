@@ -47,7 +47,7 @@ A post appears on r/technology. Within seconds:
 
 > **This system is best understood visually.**
 > 
-> ### 👉 [Open Interactive Architecture Diagram](https://yogesh249s.github.io/Reddit_signalflow/signal_flow_architecture.html)
+> ### 👉 [Open Interactive Architecture Diagram](https://yogesh249s.github.io/Signalflow/signal_flow_architecture.html)
 > 
 > *Traces a single Reddit post through every layer — Kafka partitioning, dual-path processing, NLP enrichment, TimescaleDB writes, WebSocket push, and Grafana. Click a step to expand it.*
 
