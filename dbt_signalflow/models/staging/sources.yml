@@ -1,0 +1,70 @@
+version: 2
+
+sources:
+  - name: reddit_raw
+    description: >
+      Raw tables written by the SignalFlow ingestion and processing pipeline.
+      Posts are upserted on every refresh cycle. Metrics history is append-only.
+      NLP features are written once at first ingestion.
+    schema: public
+    tables:
+
+      - name: posts
+        description: >
+          Central post table. One row per Reddit post, upserted on every
+          refresh cycle with the latest score, velocity, and trending state.
+        columns:
+          - name: id
+            description: Reddit's string post ID (e.g. t3_xyz123)
+            tests: [unique, not_null]
+          - name: title
+            tests: [not_null]
+          - name: current_score
+            tests: [not_null]
+          - name: poll_priority
+            tests:
+              - accepted_values:
+                  values: ["aggressive", "normal", "slow", "inactive"]
+          - name: first_seen_at
+            tests: [not_null]
+          # score_velocity and trending_score nullable on brand-new posts
+          # before first refresh cycle — no not_null test on raw source
+
+      - name: post_metrics_history
+        description: >
+          TimescaleDB hypertable. Append-only time-series.
+          Column is captured_at not time.
+        columns:
+          - name: captured_at
+            tests: [not_null]
+          - name: post_id
+            tests: [not_null]
+          - name: score
+            tests: [not_null]
+
+      - name: post_nlp_features
+        description: >
+          NLP features computed once at first ingestion via VADER.
+          No sentiment_label column in raw table — derived in staging model.
+        columns:
+          - name: post_id
+            tests: [unique, not_null]
+          - name: sentiment_score
+            tests: [not_null]
+
+      - name: subreddit_config
+        description: >
+          Hot-reload config managed via Django Admin.
+        columns:
+          - name: name
+            tests: [unique, not_null]
+
+      - name: subreddits
+        description: >
+          Master subreddit list. Maps integer subreddit_id to subreddit name.
+          Referenced by posts table via foreign key.
+        columns:
+          - name: id
+            tests: [unique, not_null]
+          - name: name
+            tests: [unique, not_null]

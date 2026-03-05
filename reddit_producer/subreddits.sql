@@ -1,6 +1,6 @@
 
 
---DELETE FROM subreddit_config;
+DELETE FROM subreddit_config;
 
 INSERT INTO subreddit_config (name, interval_seconds, priority, is_active) VALUES
 

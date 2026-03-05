@@ -1,0 +1,30 @@
+name: signalflow
+version: "1.0.0"
+config-version: 2
+
+profile: signalflow
+
+model-paths:  ["models"]
+test-paths:   ["tests"]
+macro-paths:  ["macros"]
+seed-paths:   ["seeds"]
+
+target-path:  "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  signalflow:
+    staging:
+      +materialized: view        # staging models are views — no storage cost,
+                                 # always reflect latest raw data
+      +schema: staging           # written to postgres `staging` schema
+
+    dimensions:
+      +materialized: table       # dims are tables — stable, fast to join against
+      +schema: analytics
+
+    facts:
+      +materialized: incremental # fact models are incremental — only process
+                                 # new rows on each run, not full refresh
+      +schema: analytics
+      +on_schema_change: append_new_columns

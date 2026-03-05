@@ -1,46 +1,23 @@
 """
 processing/main_processor.py
 ============================
-OPTIMISATION CHANGES vs original
-----------------------------------
-1. MICRO-BATCHING (biggest change in this file)
-   - Original: processed one Kafka message at a time, calling
-     `upsert_post_snapshot()` and `insert_metrics_history()` individually for
-     each message — one DB round-trip per message, per function call.
-   - New: messages are accumulated in `raw_batch` / `refresh_batch` lists.
-     When the batch hits BATCH_SIZE (50 messages) OR BATCH_TIMEOUT (2 s)
-     elapses, `flush_batches()` is called, which writes all rows in two bulk
-     statements (execute_values). This reduces Postgres write overhead by ~50×
-     at default batch size.
+CHANGES vs original:
+  1. Now consumes `signals.normalised` in addition to Reddit-specific topics.
+     The signals topic carries normalised Signal dicts from all sources.
 
-2. MANUAL OFFSET COMMIT (exactly-once-style processing)
-   - Original: `enable_auto_commit=True` (default) — Kafka auto-committed
-     offsets every 5 s regardless of whether DB writes succeeded. A crash
-     mid-batch would silently skip messages.
-   - New: `enable_auto_commit=False`. Offsets are committed only AFTER the
-     batch has been successfully written to Postgres. A crash before commit
-     causes Kafka to re-deliver the batch — no data loss.
+  2. Three batch buckets instead of two:
+     - raw_batch     : Reddit raw posts (legacy path, unchanged)
+     - refresh_batch : Reddit refresh events (legacy path, unchanged)
+     - signal_batch  : all normalised signals from signals.normalised topic
 
-3. LARGER KAFKA FETCH SIZE
-   - Original: default `max_poll_records=500` and `fetch_max_bytes=50MB` but
-     `fetch_min_bytes=1` — Kafka returns as soon as 1 byte is available,
-     giving tiny fetches that keep the consumer busy with overhead.
-   - New: `fetch_min_bytes=1024` (wait for at least 1 KB before returning),
-     `max_poll_records=200` per poll call — the consumer processes bigger
-     chunks per iteration, reducing poll loop overhead.
+  3. flush_signal_batch() is the new unified flush path.
+     It handles NLP enrichment, velocity, trending, and DB writes
+     using Signal field names (raw_score, comment_count) not Reddit ones.
 
-4. SENTIMENT CACHING — skip recomputing for unchanged titles
-   - Original: `analyze_sentiment(post["title"])` called on EVERY message,
-     including refresh events where the title hasn't changed. VADER is fast
-     (~1 ms) but pointless on the same string repeated every 5 min.
-   - New: `_sentiment_cache` dict keyed by post_id. On a refresh event,
-     sentiment is looked up from cache; VADER only runs for truly new posts
-     and when cache misses occur. Cache entries expire with the post (24 h).
+  4. Legacy flush_batches() preserved unchanged for Reddit topics.
 
-5. REMOVED STALE print() DEBUGGING
-   - Original had un-toggled `print(f"[RAW] Processed post {post['id']}")` in
-     the hot path. Under 10,000 messages/min this adds measurable stdout I/O.
-   - New: structured `logger.info / logger.debug` with appropriate levels.
+  5. DLQ topic updated to `signals.dlq` for the new path.
+     Reddit-specific errors still go to `reddit.posts.dlq`.
 """
 
 import json
@@ -53,18 +30,24 @@ from datetime import datetime, timezone
 from kafka import KafkaConsumer, KafkaProducer
 
 from processing.db_writer import (
+    # Legacy Reddit writers
     bulk_upsert_posts,
     bulk_insert_metrics_history,
     bulk_upsert_nlp_features,
+    # New unified writers
+    bulk_upsert_signals,
+    bulk_insert_signal_metrics_history,
+    bulk_upsert_signal_nlp,
 )
 from processing.analytics.sentiment import analyze_sentiment
 from processing.analytics.engagement_velocity import calculate_velocity
 from processing.analytics.trending_score import compute_trending
+from processing.analytics.topic_extractor import extract_topics_batch
+from processing.analytics.normalised_score import enrich_normalised_scores
 from processing.channel_publisher import publish_post_updates
 from processing.metrics import (
     start_metrics_server,
     inc_counter,
-    set_gauge,
     timed,
 )
 
@@ -76,11 +59,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092,kafka2:9092,kafka3:9092")
+BATCH_SIZE      = int(os.environ.get("BATCH_SIZE", "50"))
+BATCH_TIMEOUT   = float(os.environ.get("BATCH_TIMEOUT", "2.0"))
 
-# ── Dead-Letter Queue ─────────────────────────────────────────────────────────
-# PHASE 1: Route failed messages to DLQ instead of silently dropping them.
+# Topics to consume
+REDDIT_RAW_TOPIC     = "reddit.posts.raw"
+REDDIT_REFRESH_TOPIC = "reddit.posts.refresh"
+SIGNALS_TOPIC        = "signals.normalised"
 
-DLQ_TOPIC = "reddit.posts.dlq"
+REDDIT_DLQ  = "reddit.posts.dlq"
+SIGNALS_DLQ = "signals.dlq"
+
 _dlq_producer: KafkaProducer | None = None
 
 
@@ -94,177 +83,246 @@ def _get_dlq_producer() -> KafkaProducer:
     return _dlq_producer
 
 
-def _send_to_dlq(messages: list[dict], source_topic: str, error: Exception) -> None:
-    """
-    Route failed messages to the DLQ topic with full error context.
-    The dlq_consumer.py process stores these for inspection and replay.
-    """
-    producer = _get_dlq_producer()
+def _send_to_dlq(messages: list[dict], topic: str, error: Exception) -> None:
+    producer  = _get_dlq_producer()
     failed_at = datetime.now(timezone.utc).isoformat()
     for msg in messages:
-        envelope = {
-            "source_topic": source_topic,
-            "error":        str(error),
-            "failed_at":    failed_at,
-            "attempt":      1,
-            "payload":      msg,
-        }
         try:
-            producer.send(DLQ_TOPIC, value=envelope)
-        except Exception as dlq_exc:
-            logger.critical("Failed to send to DLQ — message is lost: %s", dlq_exc)
+            producer.send(topic, value={
+                "source_topic": topic,
+                "error":        str(error),
+                "failed_at":    failed_at,
+                "payload":      msg,
+            })
+        except Exception as e:
+            logger.critical("DLQ send failed — message lost: %s", e)
     try:
         producer.flush(timeout=5)
     except Exception:
         pass
 
 
-# CHANGE: was no batching. These two parameters control the write cadence.
-# Flush when either limit is hit, whichever comes first.
-BATCH_SIZE    = 50     # rows — flush after accumulating this many messages
-BATCH_TIMEOUT = 2.0    # seconds — flush even if batch isn't full yet
-
 # ── Sentiment cache ───────────────────────────────────────────────────────────
-# CHANGE: was no caching — VADER ran on every message including refreshes.
-# Keyed by post_id; value is (compound_score, label).
+# Keyed by signal id ("reddit:abc123", "hackernews:456", etc.)
 _sentiment_cache: dict[str, tuple[float, str]] = {}
 
 
-def _get_sentiment(post: dict) -> tuple[float, str]:
+def _get_sentiment(signal: dict) -> tuple[float, str]:
     """
-    Return cached sentiment for this post_id, or compute and cache it.
-    CHANGE: avoids redundant VADER calls on refresh events (same title,
-    same result every 5 min for the post's 24-h lifetime).
+    Use title for Reddit/HN, body for Bluesky/YouTube (which have no titles).
+    Cache by signal id — runs VADER once per signal lifetime.
     """
-    pid = post["id"]
-    if pid not in _sentiment_cache:
-        _sentiment_cache[pid] = analyze_sentiment(post["title"])
-    return _sentiment_cache[pid]
+    sid = signal["id"]
+    if sid not in _sentiment_cache:
+        text = signal.get("title") or signal.get("body") or ""
+        _sentiment_cache[sid] = analyze_sentiment(text)
+    return _sentiment_cache[sid]
 
 
-# ── Batch flush ───────────────────────────────────────────────────────────────
+# ── NEW: Unified signal flush ─────────────────────────────────────────────────
 
-def flush_batches(
-    raw_batch: list[dict],
-    refresh_batch: list[dict],
-) -> None:
+def flush_signal_batch(signal_batch: list[dict]) -> None:
     """
-    CHANGE: was N individual DB calls (one per message).
-    Now: two bulk_upsert calls cover the entire batch in two SQL statements.
+    Process and persist a batch of normalised signals from any platform.
+
+    Steps:
+      1. Sentiment (VADER, cached per signal)
+      2. Topic extraction (spaCy NER, batched for performance)
+      3. Keyword extraction (simple word frequency, still useful for search)
+      4. Bulk DB writes
+      5. Velocity + trending
+      6. WebSocket publish for trending signals
     """
+    if not signal_batch:
+        return
+
+    with timed("signal_processor_batch_flush_seconds"):
+
+        # ── Step 1: Sentiment ─────────────────────────────────────────────────
+        for sig in signal_batch:
+            compound, label = _get_sentiment(sig)
+            sig["sentiment_compound"] = compound
+            sig["sentiment_label"]    = label
+
+        # ── Step 2: Topic extraction (spaCy NER, one pass over entire batch) ──
+        # Prefer title for Reddit/HN, fall back to body for Bluesky/YouTube.
+        # Concatenate both when both exist — more context = better NER.
+        texts = [
+            (sig.get("title", "") + " " + sig.get("body", "")).strip()
+            for sig in signal_batch
+        ]
+        topic_results = extract_topics_batch(texts)  # single nlp.pipe() call
+        for sig, topics in zip(signal_batch, topic_results):
+            sig["topics"] = topics
+
+        # ── Step 3: Keyword extraction (simple, fast, complements NER) ────────
+        # Topics = named entities (who/what).
+        # Keywords = content words (what it's about, useful for search).
+        # They're different — keep both.
+        _STOPWORDS = {
+            "the","a","an","and","or","but","in","on","at","to","for",
+            "of","with","by","from","as","is","was","are","were","be",
+            "been","have","has","had","do","does","did","will","would",
+            "could","should","may","might","that","this","these","those",
+            "it","its","i","you","he","she","we","they","what","which",
+            "who","how","when","where","why","not","no","so","if","says",
+            "said","also","after","before","along","about","just","more",
+        }
+        for sig in signal_batch:
+            text = (sig.get("title","") + " " + sig.get("body","")).lower()
+            keywords = [
+                w for w in text.split()
+                if len(w) > 3 and w.isalpha() and w not in _STOPWORDS
+            ]
+            sig["keywords"] = list(dict.fromkeys(keywords))[:10]
+
+        # ── Step 4: Write initial state ───────────────────────────────────────
+        enrich_normalised_scores(signal_batch)   # adds normalised_score per platform
+        bulk_upsert_signals(signal_batch)
+        bulk_upsert_signal_nlp(signal_batch)
+
+        # ── Step 5: Velocity + trending ───────────────────────────────────────
+        enriched = []
+        for sig in signal_batch:
+            score_vel, comment_vel = calculate_velocity(sig)
+            compound = sig.get("sentiment_compound", 0.0)
+
+            # compute_trending expects comment_count key
+            trending_input = {**sig, "num_comments": sig.get("comment_count", 0)}
+            trending_score, is_trending = compute_trending(trending_input, score_vel, compound)
+
+            sig["score_velocity"]   = score_vel
+            sig["comment_velocity"] = comment_vel
+            sig["trending_score"]   = trending_score
+            sig["is_trending"]      = is_trending
+
+            if score_vel != 0.0 or comment_vel != 0.0:
+                enriched.append(sig)
+
+        # ── Step 6: Write enriched signals + metrics history ──────────────────
+        if enriched:
+            bulk_upsert_signals(enriched)          # update velocity/trending
+            bulk_insert_signal_metrics_history(enriched)
+
+        # ── Step 7: WebSocket publish for trending signals ────────────────────
+        trending = [s for s in signal_batch if s.get("is_trending")]
+        if trending:
+            publish_post_updates(trending)
+
+        inc_counter("signal_processor_messages_total", len(signal_batch), {"topic": "signals"})
+        logger.info("[SIGNALS] Flushed batch of %d signals (%d trending).",
+                    len(signal_batch), len(trending))
+
+
+# ── Legacy Reddit flush (unchanged) ──────────────────────────────────────────
+
+def flush_batches(raw_batch: list[dict], refresh_batch: list[dict]) -> None:
     with timed("reddit_processor_batch_flush_seconds"):
         if raw_batch:
-            # Compute NLP for all raw posts in one pass (list comprehension)
             nlp_rows = []
             for post in raw_batch:
-                score, label = _get_sentiment(post)
+                score, label = analyze_sentiment(post["title"])
                 keywords = [w for w in post["title"].lower().split() if len(w) > 3][:10]
                 nlp_rows.append((post["id"], score, json.dumps(keywords)))
-
-            # Two bulk statements cover the entire raw batch
             bulk_upsert_posts(raw_batch)
             bulk_upsert_nlp_features(nlp_rows)
             inc_counter("reddit_processor_messages_total", len(raw_batch), {"topic": "raw"})
-            logger.info("[RAW  ] Flushed batch of %d posts to DB.", len(raw_batch))
+            logger.info("[RAW  ] Flushed %d posts.", len(raw_batch))
 
         if refresh_batch:
-            # Compute velocity and trending, write results back into each post dict
             for post in refresh_batch:
-                score_velocity, comment_velocity = calculate_velocity(post)
-                sentiment_score, _ = _get_sentiment(post)
-                trending_score, is_trending = compute_trending(post, score_velocity, sentiment_score)
+                # Legacy uses post["score"] and post["num_comments"]
+                from processing.analytics.velocity_cache import get_previous, update_cache
+                prev = get_previous(post["id"])
+                if prev:
+                    old_score, old_comments, old_time = prev
+                    dt = max(time.time() - old_time, 1.0)
+                    post["score_velocity"]   = (post["score"]        - old_score)    / dt
+                    post["comment_velocity"] = (post["num_comments"] - old_comments) / dt
+                else:
+                    post["score_velocity"]   = 0.0
+                    post["comment_velocity"] = 0.0
+                update_cache(post["id"], post["score"], post["num_comments"], time.time())
+                compound, _ = analyze_sentiment(post["title"])
+                t_score, is_trending = compute_trending(post, post["score_velocity"], compound)
+                post["trending_score"] = t_score
+                post["is_trending"]    = is_trending
 
-                # Write computed values back so bulk_upsert_posts can persist them
-                post["score_velocity"]   = score_velocity
-                post["comment_velocity"] = comment_velocity
-                post["trending_score"]   = trending_score
-                post["is_trending"]      = is_trending
-
-            # Two bulk statements cover the entire refresh batch
             bulk_upsert_posts(refresh_batch)
             bulk_insert_metrics_history(refresh_batch)
             inc_counter("reddit_processor_messages_total", len(refresh_batch), {"topic": "refresh"})
-            logger.info("[REFRESH] Flushed batch of %d posts to DB.", len(refresh_batch))
-            # Phase 2: notify WebSocket clients of updated posts via channel layer
+            logger.info("[REFRESH] Flushed %d posts.", len(refresh_batch))
             publish_post_updates(refresh_batch)
 
 
 # ── Main consumer loop ────────────────────────────────────────────────────────
 
 def run_processor() -> None:
-    logger.info("Connecting consumer to Kafka @ %s …", KAFKA_BOOTSTRAP)
-
-    # PHASE 1: Start Prometheus metrics HTTP server on port 8000
+    logger.info("Connecting to Kafka @ %s", KAFKA_BOOTSTRAP)
     start_metrics_server()
 
     consumer = KafkaConsumer(
-        "reddit.posts.raw",
-        "reddit.posts.refresh",
+        REDDIT_RAW_TOPIC,
+        REDDIT_REFRESH_TOPIC,
+        SIGNALS_TOPIC,            # new — all normalised signals
         bootstrap_servers=KAFKA_BOOTSTRAP,
         value_deserializer=lambda x: json.loads(x.decode("utf-8")),
-
-        # CHANGE: was auto-commit (messages could be lost on crash).
-        # Manual commit happens only after a successful batch DB write.
         enable_auto_commit=False,
         auto_offset_reset="earliest",
-        group_id="reddit-processor",
-
-        # CHANGE: wait for at least 1 KB before returning from poll —
-        # reduces empty/tiny poll overhead under low traffic.
+        group_id="signal-processor",
         fetch_min_bytes=1_024,
-
-        # CHANGE: was default 500. 200 per poll gives predictable batch sizes
-        # without holding too much data in memory at once.
         max_poll_records=200,
-
-        # Give Kafka up to 1 s to accumulate fetch_min_bytes
         fetch_max_wait_ms=1_000,
     )
 
-    logger.info(
-        "Processor started. batch_size=%d, batch_timeout=%.1fs",
-        BATCH_SIZE, BATCH_TIMEOUT,
-    )
+    logger.info("Processor started. batch_size=%d timeout=%.1fs", BATCH_SIZE, BATCH_TIMEOUT)
 
     raw_batch:     list[dict] = []
     refresh_batch: list[dict] = []
+    signal_batch:  list[dict] = []
     last_flush = time.monotonic()
 
     for message in consumer:
-        # Accumulate into the correct bucket
-        if message.topic == "reddit.posts.raw":
+        # Route to correct bucket by topic
+        if message.topic == REDDIT_RAW_TOPIC:
             raw_batch.append(message.value)
-        elif message.topic == "reddit.posts.refresh":
+        elif message.topic == REDDIT_REFRESH_TOPIC:
             refresh_batch.append(message.value)
+        elif message.topic == SIGNALS_TOPIC:
+            signal_batch.append(message.value)
 
-        total = len(raw_batch) + len(refresh_batch)
+        total   = len(raw_batch) + len(refresh_batch) + len(signal_batch)
         elapsed = time.monotonic() - last_flush
 
-        # Flush when batch is full OR the timeout window has expired
-        # CHANGE: was no batching — flushed (individually) on every message.
         if total >= BATCH_SIZE or elapsed >= BATCH_TIMEOUT:
             try:
+                # Flush legacy Reddit batches
                 flush_batches(raw_batch, refresh_batch)
-                # Only commit offsets after a successful DB write
+
+                # Flush unified signal batch
+                flush_signal_batch(signal_batch)
+
                 consumer.commit()
-                inc_counter("reddit_processor_batches_total", labels={"status": "ok"})
+                inc_counter("signal_processor_batches_total", labels={"status": "ok"})
+
             except Exception as exc:
-                inc_counter("reddit_processor_batches_total", labels={"status": "error"})
-                logger.exception(
-                    "Batch flush failed — routing %d messages to DLQ. "
-                    "Offsets NOT committed; Kafka will re-deliver.",
-                    total,
-                )
-                # PHASE 1: DLQ — send failed messages for inspection/replay
+                inc_counter("signal_processor_batches_total", labels={"status": "error"})
+                logger.exception("Batch flush failed — routing to DLQ.")
+
                 if raw_batch:
-                    _send_to_dlq(raw_batch, "reddit.posts.raw", exc)
-                    inc_counter("reddit_processor_dlq_messages_total", len(raw_batch))
+                    _send_to_dlq(raw_batch, REDDIT_DLQ, exc)
+                    inc_counter("signal_processor_dlq_messages_total", len(raw_batch))
                 if refresh_batch:
-                    _send_to_dlq(refresh_batch, "reddit.posts.refresh", exc)
-                    inc_counter("reddit_processor_dlq_messages_total", len(refresh_batch))
+                    _send_to_dlq(refresh_batch, REDDIT_DLQ, exc)
+                    inc_counter("signal_processor_dlq_messages_total", len(refresh_batch))
+                if signal_batch:
+                    _send_to_dlq(signal_batch, SIGNALS_DLQ, exc)
+                    inc_counter("signal_processor_dlq_messages_total", len(signal_batch))
+
             finally:
                 raw_batch.clear()
                 refresh_batch.clear()
+                signal_batch.clear()
                 last_flush = time.monotonic()
 
 
