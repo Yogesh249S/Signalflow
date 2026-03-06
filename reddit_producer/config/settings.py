@@ -24,9 +24,8 @@ SECRET_KEY = os.environ.get(
 
 DEBUG = os.environ.get("DJANGO_DEBUG", "true").lower() == "true"
 
-ALLOWED_HOSTS = os.environ.get(
-    "DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1"
-).split(",")
+ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,signalflo.in,www.signalflo.in").split(",")
+CSRF_TRUSTED_ORIGINS = os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "https://signalflo.in,https://www.signalflo.in").split(",")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -152,6 +151,7 @@ TIME_ZONE     = "UTC"
 USE_I18N      = True
 USE_TZ        = True
 
+STATIC_ROOT = os.environ.get('STATIC_ROOT', '/app/staticfiles')
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

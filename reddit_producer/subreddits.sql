@@ -94,6 +94,22 @@ INSERT INTO subreddit_config (name, interval_seconds, priority, is_active) VALUE
 ('music',                 180, 'medium', true),
 ('hiphopheads',           180, 'medium', true),
 ('books',                 180, 'medium', true),
+('flicks',                 180, 'medium', true),
+('boxoffice',                 180, 'medium', true),
+('criterion',                 180, 'medium', true),
+('bollywood',                 180, 'medium', true),
+('BollywoodMemes',                 180, 'medium', true),
+('tollywood',                 180, 'medium', true),
+('kollywood',                 180, 'medium', true),
+('MalayalamMovies',                 180, 'medium', true),
+('entertainment',                 180, 'medium', true),
+('IndianCinema',                 180, 'medium', true),
+
+('Fauxmoi',                 180, 'medium', true),
+('popculturechat',                 180, 'medium', true),
+('celebrities',                 180, 'medium', true),
+('BollywoodGossip',                 180, 'medium', true),
+
 
 -- Lifestyle (growing fast in 2025 per data)
 ('AskMen',                180, 'medium', true),

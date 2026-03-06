@@ -5,4 +5,5 @@ COPY requirements.django.txt .
 RUN pip install --no-cache-dir -r requirements.django.txt
 COPY apps/    ./apps/
 COPY config/  ./config/
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8080", "config.routing:application"]
+COPY manage.py   ./manage.py
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8080", "config.asgi:application"]

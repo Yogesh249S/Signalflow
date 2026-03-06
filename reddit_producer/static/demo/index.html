@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SignalFlow — Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --bg:     #080c10;
+  --bg2:    #0d1219;
+  --border: rgba(255,255,255,0.07);
+  --text:   #e8edf2;
+  --muted:  #5a6a7a;
+  --blue:   #2979ff;
+  --green:  #00e676;
+  --mono:   'DM Mono', monospace;
+  --sans:   'Sora', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+}
+
+/* grid bg */
+body::before {
+  content:'';
+  position:fixed; inset:0; pointer-events:none;
+  background-image:
+    linear-gradient(rgba(41,121,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(41,121,255,0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black, transparent);
+}
+
+/* glow */
+body::after {
+  content:'';
+  position:fixed; top:30%; left:50%; transform:translateX(-50%);
+  width:600px; height:400px;
+  background:radial-gradient(ellipse, rgba(41,121,255,0.07) 0%, transparent 70%);
+  pointer-events:none;
+}
+
+/* NAV */
+nav {
+  position:fixed; top:0; left:0; right:0; z-index:10;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 48px; height:58px;
+  background:rgba(8,12,16,0.85);
+  backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+}
+.logo {
+  font-size:17px; font-weight:700; color:var(--text);
+  text-decoration:none; display:flex; align-items:center; gap:9px;
+}
+.logo-dot {
+  width:7px; height:7px; border-radius:50%;
+  background:var(--blue);
+  box-shadow:0 0 8px var(--blue);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { box-shadow:0 0 8px var(--blue), 0 0 0 0 rgba(41,121,255,0.4); }
+  50%      { box-shadow:0 0 14px var(--blue), 0 0 0 6px rgba(41,121,255,0); }
+}
+.nav-back {
+  font-size:13px; color:var(--muted); text-decoration:none;
+  font-weight:500; transition:color 0.15s; display:flex; align-items:center; gap:6px;
+}
+.nav-back:hover { color:var(--text); }
+
+/* MAIN */
+main {
+  min-height:100vh;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  padding:100px 24px 60px;
+  position:relative; z-index:1;
+}
+
+/* terminal window */
+.terminal {
+  width:100%; max-width:560px;
+  background:var(--bg2);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:12px;
+  overflow:hidden;
+  box-shadow:0 0 0 1px rgba(41,121,255,0.1), 0 32px 80px rgba(0,0,0,0.6);
+  animation:float-in 0.6s cubic-bezier(0.16,1,0.3,1) forwards;
+}
+
+@keyframes float-in {
+  from { opacity:0; transform:translateY(24px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+.t-bar {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 16px;
+  background:rgba(255,255,255,0.03);
+  border-bottom:1px solid var(--border);
+}
+.t-dots { display:flex; gap:6px; }
+.t-dot  { width:10px; height:10px; border-radius:50%; }
+.t-title { font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.5px; }
+
+.t-body { padding:40px 36px 36px; text-align:center; }
+
+/* status badge */
+.status-badge {
+  display:inline-flex; align-items:center; gap:8px;
+  background:rgba(41,121,255,0.08);
+  border:1px solid rgba(41,121,255,0.2);
+  border-radius:20px; padding:6px 16px;
+  font-family:var(--mono); font-size:11px; color:var(--blue);
+  letter-spacing:0.5px; margin-bottom:28px;
+}
+.badge-dot {
+  width:6px; height:6px; border-radius:50%;
+  background:var(--blue); animation:pulse 1.8s ease-in-out infinite;
+}
+
+.t-heading {
+  font-size:28px; font-weight:700; letter-spacing:-1px;
+  color:#fff; margin-bottom:12px; line-height:1.2;
+}
+.t-sub {
+  font-size:14px; color:var(--muted); line-height:1.7;
+  margin-bottom:32px; max-width:380px; margin-left:auto; margin-right:auto;
+}
+
+/* progress bar */
+.progress-wrap {
+  background:rgba(255,255,255,0.05);
+  border:1px solid var(--border);
+  border-radius:8px; padding:16px 20px;
+  margin-bottom:28px; text-align:left;
+}
+.progress-label {
+  display:flex; justify-content:space-between; align-items:center;
+  font-family:var(--mono); font-size:11px; margin-bottom:10px;
+}
+.pl-text { color:var(--muted); }
+.pl-pct  { color:var(--blue); font-weight:500; }
+.progress-bar {
+  height:3px; background:rgba(255,255,255,0.07); border-radius:2px; overflow:hidden;
+}
+.progress-fill {
+  height:100%; width:0%; border-radius:2px;
+  background:linear-gradient(90deg, var(--blue), #00e5ff);
+  animation:fill-bar 2.5s cubic-bezier(0.4,0,0.2,1) forwards;
+  animation-delay:0.6s;
+}
+@keyframes fill-bar {
+  from { width:0%; }
+  to   { width:68%; }
+}
+
+/* checklist */
+.checklist {
+  text-align:left; margin-bottom:32px;
+  display:flex; flex-direction:column; gap:10px;
+}
+.check-item {
+  display:flex; align-items:center; gap:10px;
+  font-size:13px; color:var(--muted);
+  opacity:0; animation:fade-item 0.4s ease forwards;
+}
+.check-item.done { color:var(--text); }
+.check-item:nth-child(1) { animation-delay:0.3s; }
+.check-item:nth-child(2) { animation-delay:0.5s; }
+.check-item:nth-child(3) { animation-delay:0.7s; }
+.check-item:nth-child(4) { animation-delay:0.9s; }
+.check-item:nth-child(5) { animation-delay:1.1s; }
+
+@keyframes fade-item {
+  from { opacity:0; transform:translateX(-8px); }
+  to   { opacity:1; transform:translateX(0); }
+}
+
+.check-icon { font-size:14px; flex-shrink:0; width:18px; text-align:center; }
+.check-done { color:var(--green); }
+.check-wip  { color:var(--blue); }
+.check-todo { color:var(--muted); }
+
+/* notify form */
+.notify-row {
+  display:flex; gap:8px;
+}
+.notify-input {
+  flex:1; background:rgba(255,255,255,0.05);
+  border:1px solid var(--border); border-radius:8px;
+  padding:10px 14px; font-family:var(--sans);
+  font-size:13px; color:var(--text); outline:none;
+  transition:border-color 0.15s;
+}
+.notify-input::placeholder { color:var(--muted); }
+.notify-input:focus { border-color:rgba(41,121,255,0.4); }
+
+.notify-btn {
+  background:var(--blue); color:#fff;
+  border:none; border-radius:8px;
+  padding:10px 18px; font-family:var(--sans);
+  font-size:13px; font-weight:600; cursor:pointer;
+  transition:all 0.15s; white-space:nowrap;
+}
+.notify-btn:hover { background:#1a5fd4; transform:translateY(-1px); }
+
+.notify-note {
+  font-size:11px; color:var(--muted); margin-top:10px;
+  font-family:var(--mono); letter-spacing:0.3px;
+}
+
+/* back link */
+.back-link {
+  margin-top:28px;
+  font-size:13px; color:var(--muted); text-decoration:none;
+  display:inline-flex; align-items:center; gap:6px;
+  transition:color 0.15s;
+  font-family:var(--mono); letter-spacing:0.3px;
+}
+.back-link:hover { color:var(--text); }
+
+/* confirmed state */
+.confirmed { display:none; text-align:center; padding:20px 0 8px; }
+.confirmed-icon { font-size:36px; margin-bottom:12px; }
+.confirmed-text { font-size:14px; color:var(--green); font-weight:500; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo">
+    <div class="logo-dot"></div>
+    SignalFlow
+  </a>
+  <a href="/" class="nav-back">← Back to home</a>
+</nav>
+
+<main>
+  <div class="terminal">
+    <div class="t-bar">
+      <div class="t-dots">
+        <div class="t-dot" style="background:#ff5f57"></div>
+        <div class="t-dot" style="background:#febc2e"></div>
+        <div class="t-dot" style="background:#28c840"></div>
+      </div>
+      <div class="t-title">signalflo.in/demo</div>
+      <div style="width:60px"></div>
+    </div>
+    <div class="t-body">
+      <div class="status-badge">
+        <div class="badge-dot"></div>
+        IN DEVELOPMENT
+      </div>
+
+      <div class="t-heading">Demo is being<br>built.</div>
+      <div class="t-sub">A live interactive dashboard showing real cross-platform signals, velocity trends, and divergence events is on the way.</div>
+
+      <div class="progress-wrap">
+        <div class="progress-label">
+          <span class="pl-text">Build progress</span>
+          <span class="pl-pct" id="pct-label">0%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+
+      <div class="checklist">
+        <div class="check-item done">
+          <span class="check-icon check-done">✓</span>
+          <span>API endpoints live — /signals/ /trending/ /compare/ /pulse/</span>
+        </div>
+        <div class="check-item done">
+          <span class="check-icon check-done">✓</span>
+          <span>WebSocket push stream running</span>
+        </div>
+        <div class="check-item done">
+          <span class="check-icon check-done">✓</span>
+          <span>Cross-platform divergence detection active</span>
+        </div>
+        <div class="check-item">
+          <span class="check-icon check-wip">◎</span>
+          <span>Interactive demo dashboard — in progress</span>
+        </div>
+        <div class="check-item">
+          <span class="check-icon check-todo">○</span>
+          <span>Public API access — coming soon</span>
+        </div>
+      </div>
+
+      <div id="form-wrap">
+        <div class="notify-row">
+          <input type="email" class="notify-input" id="email-input" placeholder="your@email.com" />
+          <button class="notify-btn" onclick="handleNotify()">Notify me</button>
+        </div>
+        <div class="notify-note">No spam. One email when the demo goes live.</div>
+      </div>
+
+      <div class="confirmed" id="confirmed">
+        <div class="confirmed-icon">✓</div>
+        <div class="confirmed-text">You're on the list.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <a href="/" class="back-link">← Back to signalflow</a>
+</main>
+
+<script>
+// Animate percentage counter to match progress bar
+const pctLabel = document.getElementById('pct-label');
+const target = 68;
+let current = 0;
+setTimeout(() => {
+  const interval = setInterval(() => {
+    current += 1;
+    pctLabel.textContent = current + '%';
+    if (current >= target) clearInterval(interval);
+  }, 2500 / target);
+}, 600);
+
+// Notify
+function handleNotify() {
+  const email = document.getElementById('email-input').value.trim();
+  if (!email || !email.includes('@')) {
+    document.getElementById('email-input').style.borderColor = 'rgba(255,23,68,0.5)';
+    return;
+  }
+  document.getElementById('form-wrap').style.display = 'none';
+  document.getElementById('confirmed').style.display = 'block';
+}
+
+document.getElementById('email-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleNotify();
+  document.getElementById('email-input').style.borderColor = '';
+});
+</script>
+</body>
+</html>
