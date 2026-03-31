@@ -1,25 +1,27 @@
 # =====================================================================
-# processing/requirements.txt  (NEW FILE — did not exist in original)
+# processing/requirements.txt
 # =====================================================================
-# CHANGE: original Dockerfile inlined pip installs with no version pins.
-#
 # kafka-python — synchronous consumer (retained; no async needed here)
 # psycopg2-binary — Postgres driver
 # psycopg2-binary includes extras (execute_values) used by db_writer.py
-# vaderSentiment — VADER sentiment analyser
+# vaderSentiment — VADER sentiment analyser (posts)
 # python-snappy — decompresses snappy-encoded Kafka messages from producer
+# transformers + torch — RoBERTa sentiment for comments
+#   torch CPU-only build keeps image size ~800MB vs 3GB for CUDA
 # =====================================================================
-
 kafka-python==2.0.2
 psycopg2-binary==2.9.9
 vaderSentiment==3.3.2
 python-snappy==0.7.3
 redis==5.0.1
-
 # Phase 2: async redis for channel layer publishing from the processing service
 redis[asyncio]==5.0.1
-
-
 # Phase 3: spaCy NER for topic extraction
 spacy>=3.7.0
 # After install run: python -m spacy download en_core_web_md
+# Phase 4: RoBERTa sentiment for comments
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.2+cpu
+transformers==4.40.0
+numpy<2.0
+numpy<2.0

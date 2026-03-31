@@ -1,3 +1,4 @@
+import re
 """
 apps/signals/views.py
 ======================
@@ -34,7 +35,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Signal, Community, PlatformDivergence, SourceConfig, TopicSummary
+from .models import Signal, Community, PlatformDivergence, SourceConfig, TopicSummary, WatchedTopic, AlertDelivery
 from .serializers import (
     SignalSerializer, CommunitySerializer,
     PlatformDivergenceSerializer, SourceConfigSerializer,
@@ -42,12 +43,13 @@ from .serializers import (
 
 logger = logging.getLogger(__name__)
 
-CACHE_TTL_SIGNALS  = 30
-CACHE_TTL_PULSE    = 300
-CACHE_TTL_TRENDING = 120
-CACHE_TTL_STATS    = 300
-CACHE_TTL_TIMELINE = 15
-CACHE_TTL_KEYWORDS = 30
+CACHE_TTL_SIGNALS    = 30
+CACHE_TTL_PULSE      = 300
+CACHE_TTL_TRENDING   = 120
+CACHE_TTL_STATS      = 300
+CACHE_TTL_TIMELINE   = 15
+CACHE_TTL_KEYWORDS   = 30
+CACHE_TTL_DIVERGENCE_LB = 60   # divergence leaderboard — 1 min
 
 
 def _now():
@@ -68,6 +70,9 @@ def _momentum_label(velocity: float) -> str:
 def _get_intelligence(topic: str, window_minutes: int) -> dict | None:
     """
     Fetch the most recent LLM-generated summary for a topic.
+    Enriches dominant_narrative with source attribution — e.g.
+    "Driven by Reddit · <narrative>" — so consumers know which
+    platform is shaping the discourse without a separate query.
     Never raises — intelligence is enrichment, not load-bearing.
     """
     try:
@@ -79,9 +84,45 @@ def _get_intelligence(topic: str, window_minutes: int) -> dict | None:
         )
         if not summary:
             return None
+
+        # ── Addition 4: source attribution ──────────────────────────────────
+        # Determine the dominant platform by signal volume in the window.
+        # We do this in Python to avoid a second DB round-trip — signals are
+        # already available in the caller's queryset, but _get_intelligence
+        # is called from multiple places so we keep it self-contained with
+        # a lightweight aggregation query.
+        narrative = summary.dominant_narrative
+        try:
+            since = _since(window_minutes)
+            platform_volumes = (
+                Signal.objects
+                .filter(topics__contains=[topic], published_at__gte=since)
+                .values("platform")
+                .annotate(n=Count("id"))
+                .order_by("-n")
+            )
+            if platform_volumes:
+                top_platform = platform_volumes[0]["platform"]
+                total        = sum(r["n"] for r in platform_volumes)
+                top_n        = platform_volumes[0]["n"]
+                share        = top_n / total if total else 0
+                # Only badge if one platform contributes ≥ 50 % of volume
+                # so we don't mislead on evenly distributed topics.
+                if share >= 0.5 and narrative:
+                    platform_label = {
+                        "reddit":      "Reddit",
+                        "hackernews":  "Hacker News",
+                        "bluesky":     "Bluesky",
+                        "youtube":     "YouTube",
+                    }.get(top_platform, top_platform.title())
+                    narrative = f"{platform_label}-dominant · {narrative}"
+        except Exception as attr_exc:
+            logger.debug("source attribution failed for %r: %s", topic, attr_exc)
+        # ── end addition 4 ───────────────────────────────────────────────────
+
         return {
             "summary":                summary.summary_text,
-            "dominant_narrative":     summary.dominant_narrative,
+            "dominant_narrative":     narrative,
             "emerging_angle":         summary.emerging_angle,
             "divergence_explanation": summary.divergence_explanation,
             "generated_at":           summary.generated_at,
@@ -275,24 +316,51 @@ class PulseView(APIView):
             p        = stat["platform"]
             avg_sent = round(stat["avg_sentiment"] or 0.0, 4)
             sentiments.append(avg_sent)
-            top = (
+
+            # Top 3 signals per platform
+            # Reddit: exclude comments, show posts only
+            # YouTube/Bluesky/HN: comments are primary content, keep them
+            top_qs = (
                 qs.filter(platform=p)
                 .exclude(url="")
-                .order_by("-trending_score", "-raw_score")
-                .values("id", "title", "url", "raw_score", "trending_score")
-                .first()
+                .exclude(title="", body="")
             )
-            # Clean up CBOR blob IDs from Bluesky — replace with readable URL path
-            if top and top.get("id", "").startswith("bluesky:CBORTag"):
-                top = dict(top)
-                url = top.get("url", "")
-                # extract did:plc:.../post/xxx from bsky URL as clean id
-                top["id"] = url.replace("https://bsky.app/", "bsky://") if url else top["id"]
+            if p == "reddit":
+                top_qs = top_qs.exclude(extra__is_comment=True)
+            top_qs = (
+                top_qs
+                .order_by(
+                    F("trending_score").desc(nulls_last=True),
+                    F("raw_score").desc(nulls_last=True),
+                )
+                .values("id", "title", "body", "url", "raw_score",
+                        "trending_score", "author", "published_at")[:3]
+            )
+            top_signals = []
+            for sig in top_qs:
+                sig = dict(sig)
+                if sig.get("id", "").startswith("bluesky:CBORTag"):
+                    url = sig.get("url", "")
+                    sig["id"] = url.replace("https://bsky.app/", "bsky://") if url else sig["id"]
+                if not sig.get("title") and sig.get("body"):
+                    sig["title"] = sig["body"][:120]
+                top_signals.append(sig)
+
+            avg_vel = stat["avg_velocity"] or 0.0
+            momentum_label = _momentum_label(avg_vel)
+            if momentum_label == "rising":
+                momentum_detail = f"rising — volume accelerating (velocity: +{avg_vel:.2f})"
+            elif momentum_label == "falling":
+                momentum_detail = f"falling — volume decelerating (velocity: {avg_vel:.2f})"
+            else:
+                momentum_detail = "stable — volume consistent with recent average"
+
             platforms_data[p] = {
-                "avg_sentiment": avg_sent,
-                "signal_count":  stat["signal_count"],
-                "momentum":      _momentum_label(stat["avg_velocity"] or 0.0),
-                "top_signal":    top,
+                "avg_sentiment":   avg_sent,
+                "signal_count":    stat["signal_count"],
+                "momentum":        momentum_label,
+                "momentum_detail": momentum_detail,
+                "top_signals":     top_signals,
             }
 
         overall_sentiment = round(mean(sentiments), 4) if sentiments else None
@@ -348,14 +416,19 @@ class TrendingView(APIView):
 
     def get(self, request):
         platform = request.query_params.get("platform", "all")
-        window   = int(request.query_params.get("window", 60))
-        limit    = min(int(request.query_params.get("limit", 20)), 50)
+        window = int(request.query_params.get("window_minutes", request.query_params.get("window", 240)))
+        limit = min(int(request.query_params.get("limit", 20)), 100)
         since    = _since(window)
 
         cache_key = f"trending:{platform}:{window}:{limit}"
         cached = cache.get(cache_key)
         if cached:
             return Response(cached)
+
+        # ── Fast path: windows >= 24h read from topic_timeseries, not signals ──
+        # Avoids scanning millions of signal rows in Python for long windows.
+        if window >= 1440:
+            return self._trending_from_timeseries(request, platform, window, limit, cache_key)
 
         qs = Signal.objects.filter(published_at__gte=since).exclude(topics=[])
         if platform != "all":
@@ -369,6 +442,20 @@ class TrendingView(APIView):
         topic_map: dict = {}
         for sig in signals:
             for topic in (sig["topics"] or []):
+                # skip hashtags, quoted fragments, hex hashes, single chars
+                if not topic or topic.startswith('#') or topic.startswith('"'):
+                    continue
+                if len(topic) < 2:
+                    continue
+                if len([c for c in topic if c.isalnum()]) < 2:
+                    continue
+                if re.search(r'\d.*&|&.*\d|attachments|\d+ \w+ & \d+', topic):
+                    continue
+                if '\n' in topic or '\r' in topic:
+                    continue
+                topic = topic.strip()
+                if topic in {'handheld electric', 'legacy indie radio', 'iembot', 'dm', 'signal'}:
+                    continue
                 if topic not in topic_map:
                     topic_map[topic] = {
                         "topic":          topic,
@@ -393,7 +480,7 @@ class TrendingView(APIView):
 
         scored = []
         for topic, d in topic_map.items():
-            if d["signal_count"] < 2:
+            if d["signal_count"] < 5:
                 continue
             spread       = len(d["platforms"])
             avg_velocity = mean(d["velocities"]) if d["velocities"] else 0.0
@@ -412,13 +499,195 @@ class TrendingView(APIView):
             })
 
         scored.sort(key=lambda x: x["trend_score"], reverse=True)
+        top_topics = scored[:limit]
+
+        # ── Addition 2: 7-day sparklines ─────────────────────────────────────
+        # Pull per-day signal counts from topic_timeseries for each top topic.
+        # 7 data points = enough to tell "spiked today" vs "trending 3 days".
+        # One query for all topics via IN — not N queries.
+        if top_topics:
+            topic_names = [t["topic"] for t in top_topics]
+            sparkline_map: dict = {t: [] for t in topic_names}
+            try:
+                with connection.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT
+                            topic,
+                            DATE_TRUNC('day', bucket)  AS day,
+                            SUM(signal_count)          AS daily_count
+                        FROM topic_timeseries
+                        WHERE
+                            bucket  > NOW() - INTERVAL '7 days'
+                            AND topic = ANY(%s)
+                        GROUP BY topic, day
+                        ORDER BY topic, day
+                        """,
+                        [topic_names],
+                    )
+                    rows = cur.fetchall()
+
+                # Build a dense 7-slot list (oldest → newest, 0 for missing days)
+                from datetime import date
+                today = _now().date()
+                days  = [(today - timedelta(days=i)) for i in range(6, -1, -1)]
+                day_idx = {d: i for i, d in enumerate(days)}
+
+                for topic_name, day_dt, count in rows:
+                    d = day_dt.date() if hasattr(day_dt, "date") else day_dt
+                    idx = day_idx.get(d)
+                    if idx is not None:
+                        sl = sparkline_map.setdefault(topic_name, [0] * 7)
+                        if len(sl) < 7:
+                            sl.extend([0] * (7 - len(sl)))
+                        sl[idx] = int(count)
+
+                for topic_name in topic_names:
+                    if sparkline_map[topic_name] == []:
+                        sparkline_map[topic_name] = [0] * 7
+
+            except Exception as spark_exc:
+                logger.warning("sparkline query failed: %s", spark_exc)
+
+            for t in top_topics:
+                t["sparkline_7d"] = sparkline_map.get(t["topic"], [0] * 7)
+        # ── end addition 2 ───────────────────────────────────────────────────
+
         result = {
             "window_minutes": window,
             "platform":       platform,
             "generated_at":   _now(),
-            "topics":         scored[:limit],
+            "topics":         top_topics,
         }
         cache.set(cache_key, result, CACHE_TTL_TRENDING)
+
+        # Fire webhook alerts for any subscribed users — non-blocking best-effort.
+        # We do this after caching so the HTTP response is already on its way.
+        try:
+            _dispatch_topic_alerts(top_topics)
+        except Exception:
+            pass
+
+    def _trending_from_timeseries(self, request, platform, window, limit, cache_key):
+        """Fast trending for 24h+ windows — reads topic_timeseries hypertable."""
+        from django.db import connection
+        import re
+
+        CACHE_TTL = 300  # 5 min for 24h, still fresh enough
+
+        pf_filter = "" if platform == "all" else "AND platform = %s"
+        # Scale minimum signal threshold with window size to avoid
+        # scanning millions of low-frequency topics on long windows
+        min_signals = 5
+        if window >= 43200:   # 30d
+            min_signals = 500
+        elif window >= 10080: # 7d
+            min_signals = 100
+        elif window >= 1440:  # 24h
+            min_signals = 20
+
+        params = [window]
+        if platform != "all":
+            params.append(platform)
+        params.append(min_signals)
+        params.append(limit)
+
+        sql = """
+            SELECT
+                topic,
+                COUNT(DISTINCT platform)            AS platform_count,
+                array_agg(DISTINCT platform)        AS platforms,
+                SUM(signal_count)                   AS signal_count,
+                ROUND(AVG(avg_sentiment)::numeric, 4) AS avg_sentiment,
+                MAX(max_trending)                   AS trend_score
+            FROM topic_timeseries
+            WHERE bucket > NOW() - (%s * INTERVAL '1 minute')
+            """ + pf_filter + """
+            GROUP BY topic
+            HAVING SUM(signal_count) >= %s
+              AND topic IS NOT NULL
+              AND LENGTH(topic) >= 2
+            ORDER BY SUM(signal_count) DESC
+            LIMIT %s
+        """
+
+        try:
+            with connection.cursor() as cur:
+                cur.execute(sql, params)
+                rows = cur.fetchall()
+        except Exception as e:
+            logger.error("timeseries trending query failed: %s", e)
+            rows = []
+
+        top_topics = []
+        for topic, platform_count, platforms, signal_count, avg_sentiment, trend_score in rows:
+            # Skip noise topics
+            if not topic or topic.startswith('#') or topic.startswith('"'):
+                continue
+            if '\n' in topic or '\r' in topic:
+                continue
+            top_topics.append({
+                "topic":          topic,
+                "signal_count":   int(signal_count or 0),
+                "platform_count": int(platform_count or 0),
+                "platforms":      list(platforms or []),
+                "avg_sentiment":  float(avg_sentiment or 0),
+                "avg_velocity":   0.0,
+                "trend_score":    float(trend_score or 0),
+                "cross_platform": int(platform_count or 0) > 1,
+                "sample_signals": [],
+                "sparkline_7d":   [0] * 7,
+            })
+
+        # Add sparklines
+        if top_topics:
+            topic_names = [t["topic"] for t in top_topics]
+            sparkline_map = {t: [0] * 7 for t in topic_names}
+            try:
+                with connection.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT topic,
+                               DATE_TRUNC('day', bucket) AS day,
+                               SUM(signal_count)         AS daily_count
+                        FROM topic_timeseries
+                        WHERE bucket > NOW() - INTERVAL '7 days'
+                          AND topic = ANY(%s)
+                        GROUP BY topic, day
+                        ORDER BY topic, day
+                        """,
+                        [topic_names],
+                    )
+                    spark_rows = cur.fetchall()
+
+                from datetime import date
+                today = _now().date()
+                days = [(today - timedelta(days=i)) for i in range(6, -1, -1)]
+                day_idx = {d: i for i, d in enumerate(days)}
+
+                for topic_name, day_dt, count in spark_rows:
+                    d = day_dt.date() if hasattr(day_dt, "date") else day_dt
+                    idx = day_idx.get(d)
+                    if idx is not None:
+                        sparkline_map[topic_name][idx] = int(count)
+
+            except Exception as spark_exc:
+                logger.warning("sparkline query failed: %s", spark_exc)
+
+            for t in top_topics:
+                t["sparkline_7d"] = sparkline_map.get(t["topic"], [0] * 7)
+
+        result = {
+            "window_minutes": window,
+            "platform":       platform,
+            "generated_at":   _now(),
+            "topics":         top_topics,
+        }
+        cache.set(cache_key, result, CACHE_TTL)
+        try:
+            _dispatch_topic_alerts(top_topics)
+        except Exception as alert_exc:
+            logger.warning("alert dispatch failed: %s", alert_exc)
         return Response(result)
 
 
@@ -467,6 +736,327 @@ class CompareView(APIView):
                         "max_divergence": round(max_div, 4), "hottest_topic": hottest},
             "events":  PlatformDivergenceSerializer(events, many=True).data,
         })
+
+
+# ── Addition 3: Divergence leaderboard ───────────────────────────────────────
+
+class DivergenceLeaderboardView(APIView):
+    """
+    GET /api/v1/divergence/leaderboard/?hours=24&limit=10
+
+    Top 10 topics with the highest cross-platform divergence score right now.
+    One DB query over platform_divergence — no aggregation on the hot path.
+
+    Returns each topic with its worst active divergence event, the two
+    platforms in disagreement, and the raw scores so the consumer can
+    build their own interpretation.
+
+    This endpoint is intentionally denormalised — it's designed to be
+    polled every 60 s by dashboards and media monitoring clients.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        hours = int(request.query_params.get("hours", 24))
+        limit = min(int(request.query_params.get("limit", 10)), 50)
+
+        cache_key = f"divergence_lb:{hours}:{limit}"
+        cached = cache.get(cache_key)
+        if cached:
+            return Response(cached)
+
+        since = _now() - timedelta(hours=hours)
+
+        # One query: per topic, pick the single worst (highest divergence_score)
+        # active event.  Using a raw query to leverage DISTINCT ON which is
+        # more efficient than a Python groupby on potentially large result sets.
+        with connection.cursor() as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (topic)
+                    topic,
+                    divergence_score,
+                    platform_a,
+                    platform_b,
+                    sentiment_a,
+                    sentiment_b,
+                    detected_at,
+                    origin_platform,
+                    origin_lag_minutes
+                FROM platform_divergence
+                WHERE
+                    detected_at >= %s
+                    AND is_resolved = FALSE
+                ORDER BY topic, divergence_score DESC
+                """,
+                [since],
+            )
+            rows = cur.fetchall()
+            cols = [
+                "topic", "divergence_score", "platform_a", "platform_b",
+                "sentiment_a", "sentiment_b", "detected_at",
+                "origin_platform", "origin_lag_minutes",
+            ]
+
+        events = [dict(zip(cols, r)) for r in rows]
+        events.sort(key=lambda e: e["divergence_score"], reverse=True)
+        top    = events[:limit]
+
+        # Classify divergence severity for consumers who don't want to
+        # implement their own thresholds.
+        def _severity(score: float) -> str:
+            if score >= 0.7: return "high"
+            if score >= 0.4: return "medium"
+            return "low"
+
+        for e in top:
+            e["severity"] = _severity(e["divergence_score"])
+            # Humanise: which platform is more positive?
+            if e["sentiment_a"] is not None and e["sentiment_b"] is not None:
+                if e["sentiment_a"] > e["sentiment_b"]:
+                    e["positive_platform"] = e["platform_a"]
+                    e["negative_platform"] = e["platform_b"]
+                else:
+                    e["positive_platform"] = e["platform_b"]
+                    e["negative_platform"] = e["platform_a"]
+            e["divergence_score"] = round(e["divergence_score"], 4)
+
+        result = {
+            "generated_at":  _now(),
+            "window_hours":  hours,
+            "total_active":  len(events),
+            "leaderboard":   top,
+        }
+        cache.set(cache_key, result, CACHE_TTL_DIVERGENCE_LB)
+        return Response(result)
+
+
+# ── Addition 1: Topic alert webhooks ─────────────────────────────────────────
+
+class TopicAlertView(APIView):
+    """
+    Topic webhook subscriptions.  Authenticated — requires Token header.
+
+    POST   /api/v1/alerts/watch/
+        Body: {
+            "topic":           "openai",
+            "webhook_url":     "https://your.service/hook",
+            "min_trend_score": 50.0,    // optional, default 0
+            "min_platforms":   2,        // optional, default 1
+            "cooldown_minutes": 60       // optional, default 60
+        }
+        → 201 Created  {id, topic, webhook_url, created}
+        → 200 OK       {id, topic, webhook_url, reactivated: true}  (if exists but inactive)
+
+    DELETE /api/v1/alerts/watch/
+        Body: {"topic": "openai", "webhook_url": "https://your.service/hook"}
+        → 200 OK  {deactivated: true}
+
+    GET    /api/v1/alerts/watch/
+        → 200 OK  [{id, topic, webhook_url, is_active, last_fired_at, ...}]
+
+    Webhook payload (POST to webhook_url when triggered):
+        {
+            "event":        "topic_alert",
+            "topic":        "openai",
+            "trend_score":  142.5,
+            "platforms":    ["reddit", "hackernews"],
+            "triggered_at": "2026-03-19T14:00:00Z"
+        }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """List the authenticated user's active subscriptions."""
+        watches = (
+            WatchedTopic.objects
+            .filter(user=request.user, is_active=True)
+            .order_by("-created_at")
+            .values(
+                "id", "topic", "webhook_url",
+                "min_trend_score", "min_platforms", "cooldown_minutes",
+                "is_active", "created_at", "last_fired_at",
+            )
+        )
+        return Response(list(watches))
+
+    def post(self, request):
+        """Subscribe to alerts for a topic."""
+        topic       = (request.data.get("topic") or "").lower().strip()
+        webhook_url = (request.data.get("webhook_url") or "").strip()
+
+        if not topic:
+            return Response({"error": "topic is required"}, status=400)
+        if not webhook_url or not webhook_url.startswith(("http://", "https://")):
+            return Response({"error": "webhook_url must be a valid http(s) URL"}, status=400)
+
+        min_trend  = float(request.data.get("min_trend_score", 0.0))
+        min_plat   = int(request.data.get("min_platforms", 1))
+        cooldown   = int(request.data.get("cooldown_minutes", 60))
+
+        existing = WatchedTopic.objects.filter(
+            user=request.user, topic=topic, webhook_url=webhook_url
+        ).first()
+
+        if existing:
+            if existing.is_active:
+                return Response({
+                    "id":          existing.id,
+                    "topic":       existing.topic,
+                    "webhook_url": existing.webhook_url,
+                    "message":     "Already watching this topic.",
+                }, status=200)
+            # Reactivate
+            existing.is_active       = True
+            existing.min_trend_score = min_trend
+            existing.min_platforms   = min_plat
+            existing.cooldown_minutes= cooldown
+            existing.save()
+            return Response({
+                "id":          existing.id,
+                "topic":       existing.topic,
+                "webhook_url": existing.webhook_url,
+                "reactivated": True,
+            }, status=200)
+
+        watch = WatchedTopic.objects.create(
+            user=request.user,
+            topic=topic,
+            webhook_url=webhook_url,
+            min_trend_score=min_trend,
+            min_platforms=min_plat,
+            cooldown_minutes=cooldown,
+        )
+        return Response({
+            "id":          watch.id,
+            "topic":       watch.topic,
+            "webhook_url": watch.webhook_url,
+            "created":     True,
+        }, status=201)
+
+    def delete(self, request):
+        """Unsubscribe from a topic alert."""
+        topic       = (request.data.get("topic") or "").lower().strip()
+        webhook_url = (request.data.get("webhook_url") or "").strip()
+
+        if not topic or not webhook_url:
+            return Response({"error": "topic and webhook_url are required"}, status=400)
+
+        updated = WatchedTopic.objects.filter(
+            user=request.user, topic=topic, webhook_url=webhook_url, is_active=True
+        ).update(is_active=False)
+
+        if not updated:
+            return Response({"error": "Subscription not found."}, status=404)
+
+        return Response({"deactivated": True})
+
+
+# ── Alert dispatcher — called from the trending pipeline ─────────────────────
+
+def _dispatch_topic_alerts(trending_topics: list[dict]) -> None:
+    """
+    Called at the end of TrendingView (or from an async task/cron) after
+    trending topics are scored.  Fires webhooks for any subscribed users
+    whose threshold is met and whose cooldown has expired.
+
+    trending_topics is the scored list from TrendingView:
+        [{"topic": "openai", "trend_score": 142.5, "platforms": [...], ...}]
+
+    This function is deliberately synchronous and fire-and-forget for the
+    MVP — it uses urllib (stdlib, no extra deps) so it works inside the
+    Django process.  When volume grows, move to a Celery task or the
+    existing Kafka pipeline.
+    """
+    import urllib.request
+    import json as _json
+
+    if not trending_topics:
+        return
+
+    topic_index = {t["topic"]: t for t in trending_topics}
+    topic_names = list(topic_index.keys())
+
+    now = _now()
+
+    # Load all active subscriptions that cover any of the trending topics
+    watches = list(
+        WatchedTopic.objects
+        .filter(topic__in=topic_names, is_active=True)
+        .select_related("user")
+    )
+    if not watches:
+        return
+
+    for watch in watches:
+        td = topic_index[watch.topic]
+
+        # Threshold checks
+        if td["trend_score"] < watch.min_trend_score:
+            continue
+        if td["platform_count"] < watch.min_platforms:
+            continue
+
+        # Cooldown check
+        if watch.last_fired_at:
+            elapsed = (now - watch.last_fired_at).total_seconds() / 60
+            if elapsed < watch.cooldown_minutes:
+                continue
+
+        # Build payload
+        payload = _json.dumps({
+            "event":        "topic_alert",
+            "topic":        watch.topic,
+            "trend_score":  td["trend_score"],
+            "platform_count": td["platform_count"],
+            "platforms":    td["platforms"],
+            "triggered_at": now.isoformat(),
+        }).encode()
+
+        t0          = _now()
+        http_status = None
+        error_msg   = None
+        try:
+            req = urllib.request.Request(
+                watch.webhook_url,
+                data=payload,
+                headers={"Content-Type": "application/json", "User-Agent": "SignalFlow/3.0"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                http_status = resp.status
+        except Exception as exc:
+            error_msg = str(exc)[:200]
+
+        latency_ms = int((_now() - t0).total_seconds() * 1000)
+        success    = http_status is not None and 200 <= http_status < 300
+
+        # Write audit record
+        try:
+            AlertDelivery.objects.create(
+                watched_topic=watch,
+                topic=watch.topic,
+                trend_score=td["trend_score"],
+                platform_count=td["platform_count"],
+                platforms=td["platforms"],
+                http_status=http_status,
+                success=success,
+                error_message=error_msg,
+                latency_ms=latency_ms,
+            )
+            # Update last_fired_at regardless of success — we don't want to
+            # spam a broken endpoint.  Users can check alert_deliveries.
+            WatchedTopic.objects.filter(pk=watch.pk).update(last_fired_at=now)
+        except Exception as db_exc:
+            logger.warning("alert delivery audit write failed: %s", db_exc)
+
+        if success:
+            logger.info("alert fired: %s → %s (%d ms)", watch.topic, watch.webhook_url, latency_ms)
+        else:
+            logger.warning(
+                "alert failed: %s → %s status=%s err=%s",
+                watch.topic, watch.webhook_url, http_status, error_msg,
+            )
 
 
 # ── Stats (replaces /api/stats/) ──────────────────────────────────────────────
@@ -708,6 +1298,152 @@ def platform_totals(request):
         },
     }
     cache.set("platform_totals", result, 300)  # cache 5 min
+    return Response(result)
+
+
+# ── Dashboard — single endpoint replacing 7 parallel calls ───────────────────
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def dashboard(request):
+    """
+    GET /api/v1/dashboard/?window=240&limit=25
+
+    Bundles everything the homepage needs into one response:
+      - platform totals (all-time + 24h)
+      - trending topics with sparklines
+      - pulse for the top 5 trending topics
+
+    One call replaces 7+ parallel calls. Cached for 60 seconds.
+    This endpoint exists purely to reduce frontend request count and
+    eliminate 502s caused by 7 simultaneous Django worker hits on page load.
+    """
+    window = int(request.query_params.get("window", 240))
+    limit  = min(int(request.query_params.get("limit", 25)), 50)
+
+    cache_key = f"dashboard:{window}:{limit}"
+    cached = cache.get(cache_key)
+    if cached:
+        return Response(cached)
+
+    # ── 1. Platform totals ────────────────────────────────────────────────────
+    totals = cache.get("platform_totals")
+    if not totals:
+        with connection.cursor() as cur:
+            cur.execute("""
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE platform='reddit') as reddit,
+                    COUNT(*) FILTER (WHERE platform='hackernews') as hackernews,
+                    COUNT(*) FILTER (WHERE platform='youtube') as youtube,
+                    COUNT(*) FILTER (WHERE platform='bluesky') as bluesky
+                FROM signals
+            """)
+            row = cur.fetchone()
+            cur.execute("""
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE platform='reddit') as reddit,
+                    COUNT(*) FILTER (WHERE platform='hackernews') as hackernews,
+                    COUNT(*) FILTER (WHERE platform='youtube') as youtube,
+                    COUNT(*) FILTER (WHERE platform='bluesky') as bluesky
+                FROM signals
+                WHERE last_updated_at >= NOW() - INTERVAL '24 hours'
+            """)
+            row24 = cur.fetchone()
+        totals = {
+            "all_time": {
+                "total": row[0], "reddit": row[1],
+                "hackernews": row[2], "youtube": row[3], "bluesky": row[4],
+            },
+            "last_24h": {
+                "total": row24[0], "reddit": row24[1],
+                "hackernews": row24[2], "youtube": row24[3], "bluesky": row24[4],
+            },
+        }
+        cache.set("platform_totals", totals, 300)
+
+    # ── 2. Trending topics ────────────────────────────────────────────────────
+    trending_key = f"trending:all:{window}:{limit}"
+    trending = cache.get(trending_key)
+    if not trending:
+        # Reuse TrendingView logic via internal request simulation
+        from rest_framework.test import APIRequestFactory
+        factory = APIRequestFactory()
+        fake_req = factory.get(
+            f"/api/v1/trending/?platform=all&window={window}&limit={limit}"
+        )
+        from rest_framework.request import Request
+        fake_req = Request(fake_req)
+        view = TrendingView()
+        view.request = fake_req
+        resp = view.get(fake_req)
+        trending = resp.data
+    top_topics = trending.get("topics", [])[:limit]
+
+    # ── 3. Pulse for top 5 topics ─────────────────────────────────────────────
+    pulse_data = {}
+    for topic_entry in top_topics[:5]:
+        topic = topic_entry["topic"]
+        pulse_cache_key = f"pulse:{topic}:{window}"
+        pulse = cache.get(pulse_cache_key)
+        if pulse:
+            pulse_data[topic] = pulse
+            continue
+
+        since = _since(window)
+        qs = Signal.objects.filter(
+            topics__contains=[topic],
+            published_at__gte=since,
+            sentiment_compound__isnull=False,
+        )
+        total = qs.count()
+        if total == 0:
+            pulse_data[topic] = {"signal_count": 0, "overall_sentiment": None}
+            continue
+
+        platform_stats = qs.values("platform").annotate(
+            avg_sentiment=Avg("sentiment_compound"),
+            signal_count=Count("id"),
+            avg_velocity=Avg("score_velocity"),
+        )
+        platforms_data = {}
+        sentiments = []
+        for stat in platform_stats:
+            avg_sent = round(stat["avg_sentiment"] or 0.0, 4)
+            sentiments.append(avg_sent)
+            platforms_data[stat["platform"]] = {
+                "avg_sentiment": avg_sent,
+                "signal_count":  stat["signal_count"],
+                "momentum":      _momentum_label(stat["avg_velocity"] or 0.0),
+            }
+
+        overall_sentiment = round(mean(sentiments), 4) if sentiments else None
+        divergence_score  = round(max(sentiments) - min(sentiments), 4) if len(sentiments) >= 2 else 0.0
+
+        pulse_result = {
+            "topic":              topic,
+            "signal_count":       total,
+            "overall_sentiment":  overall_sentiment,
+            "platforms":          platforms_data,
+            "divergence_score":   divergence_score,
+            "divergence_alert":   divergence_score >= 0.3,
+            "intelligence":       _get_intelligence(topic, window),
+        }
+        cache.set(pulse_cache_key, pulse_result, CACHE_TTL_PULSE)
+        pulse_data[topic] = pulse_result
+
+    result = {
+        "generated_at": _now(),
+        "window_minutes": window,
+        "platform_totals": totals,
+        "trending": {
+            "window_minutes": window,
+            "topics": top_topics,
+        },
+        "pulse": pulse_data,
+    }
+    cache.set(cache_key, result, 60)  # 60s cache — fresh enough, fast enough
     return Response(result)
 
 

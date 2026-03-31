@@ -64,7 +64,7 @@ SELECT
     AVG(sentiment_compound)  AS avg_sentiment,
     COUNT(*)                 AS signal_count,
     MIN(published_at)        AS earliest,
-    ARRAY_AGG(id ORDER BY raw_score DESC NULLS LAST)[:3] AS top_signal_ids
+    ARRAY_AGG(id ORDER BY raw_score DESC NULLS LAST)[1:3] AS top_signal_ids
 FROM
     signals,
     jsonb_array_elements_text(topics) AS topic

@@ -76,22 +76,38 @@ def _serialize(submission, subreddit_name: str) -> dict:
         "selftext":     getattr(submission, "selftext", ""),
         "subreddit":    subreddit_name,
         "author":       str(submission.author) if submission.author else "deleted",
-        "created_utc":  submission.created_utc,
-        "score":        submission.score,
-        "num_comments": submission.num_comments,
-        "upvote_ratio": submission.upvote_ratio,
+        "created_utc":  float(submission.created_utc or 0),
+        "score":        int(submission.score or 0),
+        "num_comments": int(submission.num_comments or 0),
+        "upvote_ratio": float(submission.upvote_ratio or 0),
+    }
+
+
+def _serialize_comment(comment, submission, subreddit_name: str) -> dict:
+    return {
+        "id":                f"reddit_comment_{comment.id}",
+        "title":             "",
+        "selftext":          comment.body[:2048],
+        "subreddit":         subreddit_name,
+        "author":            str(comment.author) if comment.author else "deleted",
+        "created_utc":       float(comment.created_utc or 0),
+        "score":             int(comment.score or 0),
+        "num_comments":      0,
+        "upvote_ratio":      None,
+        "parent_post_id":    submission.id,
+        "parent_post_title": submission.title[:300],
+        "is_comment":        True,
     }
 
 
 class RedditIngester(BaseIngester):
     """
     Manages per-subreddit polling tasks, active post tracking,
-    eviction, and refresh — same logic as original scheduler.py,
-    now encapsulated as a class.
+    eviction, and refresh.
     """
     source_name  = "reddit"
     kafka_topic  = "reddit.posts.raw"
-    poll_interval = 0   # Reddit manages its own per-subreddit intervals internally
+    poll_interval = 0
 
     def __init__(self):
         super().__init__()
@@ -114,7 +130,6 @@ class RedditIngester(BaseIngester):
         logger.info("Reddit client initialised.")
 
     async def _recreate_client(self) -> None:
-        """Safely close and recreate the asyncpraw client when session dies."""
         try:
             await self.reddit.close()
         except Exception:
@@ -123,17 +138,12 @@ class RedditIngester(BaseIngester):
         logger.info("Reddit client recreated after session failure.")
 
     async def poll(self) -> AsyncIterator[dict]:
-        # Reddit doesn't use a simple poll() loop — it manages
-        # per-subreddit tasks internally. poll() is unused here;
-        # run() is overridden below.
         return
-        yield  # make it a generator
+        yield
 
     async def teardown(self) -> None:
         if self.reddit:
             await self.reddit.close()
-
-    # ── Override run() — Reddit needs its own task management ─────────────────
 
     async def run(self) -> None:
         self.producer = await __import__(
@@ -150,7 +160,7 @@ class RedditIngester(BaseIngester):
         logger.info("Reddit ingester started — %d subreddits", len(self.subreddits))
 
         try:
-            await asyncio.gather(*tasks, return_exceptions=False)
+            await asyncio.gather(*tasks, return_exceptions=True)
         except asyncio.CancelledError:
             logger.info("Reddit ingester shutdown cleanly.")
         finally:
@@ -193,8 +203,28 @@ class RedditIngester(BaseIngester):
                             await self.producer.send("reddit.posts.raw", post)
                             await self.producer.send("signals.normalised", signal)
 
+                        # Top comments — requires load() since asyncpraw 7.7.1
+                        try:
+                            await submission.load()
+                            for comment in submission.comments[:25]:
+                                if not hasattr(comment, "body"):
+                                    continue
+                                if comment.body in ("[deleted]", "[removed]", ""):
+                                    continue
+                                if int(comment.score or 0) < 5:
+                                    continue
+                                raw_comment = _serialize_comment(comment, submission, name)
+                                comment_signal = normalise("reddit", raw_comment)
+                                if comment_signal:
+                                    await self.producer.send("signals.normalised", comment_signal)
+                        except asyncprawcore.exceptions.TooManyRequests:
+                            logger.debug("[r/%s] Comment load rate limited — skipping", name)
+                            await asyncio.sleep(30)
+                        except Exception as exc:
+                            logger.debug("[r/%s] Comment skipped: %s", name, exc)
+
             except asyncprawcore.exceptions.TooManyRequests as exc:
-                wait = getattr(exc, "retry_after", 10)
+                wait = max(getattr(exc, "retry_after", None) or 60, 30)
                 logger.warning("[r/%s] Rate limited — sleeping %ss", name, wait)
                 await asyncio.sleep(wait)
                 continue
@@ -247,13 +277,14 @@ class RedditIngester(BaseIngester):
                         self.active_posts[post["id"]] = updated
                     await self.producer.send("reddit.posts.refresh", updated)
                 except asyncprawcore.exceptions.TooManyRequests as exc:
-                    await asyncio.sleep(getattr(exc, "retry_after", 10))
+                    wait = max(getattr(exc, "retry_after", None) or 60, 30)
+                    await asyncio.sleep(wait)
                 except Exception as exc:
                     if "Session is closed" in str(exc):
                         logger.warning("[refresh] Session closed — recreating Reddit client")
                         await self._recreate_client()
                         await asyncio.sleep(5)
-                        break  # restart the refresh loop iteration
+                        break
                     logger.exception("[refresh] Failed post %s", post.get("id"))
 
     async def _config_watcher(self) -> None:

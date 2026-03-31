@@ -33,13 +33,36 @@ logger = logging.getLogger(__name__)
 # PRODUCT = named products (ChatGPT, Docker, Kubernetes)
 # GPE     = geopolitical entities — cities, countries (useful for geo signals)
 # NORP    = nationalities, political groups (useful for worldnews signals)
-RELEVANT_LABELS = {"ORG", "PERSON", "PRODUCT", "GPE", "NORP"}
+RELEVANT_LABELS = {"ORG", "PERSON", "PRODUCT", "GPE", "NORP", "WORK_OF_ART", "EVENT", "LAW"}
 
 # ── Tech seed patterns ────────────────────────────────────────────────────────
 # Only terms spaCy's en_core_web_sm/md doesn't reliably detect.
 # Keep this small — spaCy handles the rest.
 # Format: {"label": ENTITY_TYPE, "pattern": text_or_pattern}
 TECH_SEED_PATTERNS = [
+    # High-frequency political figures spaCy en_core_web_md misses
+    {"label": "PERSON", "pattern": [{"LOWER": "trump"}]},
+    {"label": "PERSON", "pattern": [{"LOWER": "biden"}]},
+    {"label": "PERSON", "pattern": [{"LOWER": "obama"}]},
+    {"label": "PERSON", "pattern": [{"LOWER": "putin"}]},
+    {"label": "PERSON", "pattern": [{"LOWER": "zelensky"}]},
+    {"label": "PERSON", "pattern": [{"LOWER": "netanyahu"}]},
+    {"label": "PERSON", "pattern": [{"LOWER": "modi"}]},
+    {"label": "PERSON", "pattern": [{"LOWER": "xi"}]},
+    {"label": "PERSON", "pattern": [{"LOWER": "musk"}]},
+    {"label": "PERSON", "pattern": [{"LOWER": "altman"}]},
+    {"label": "PERSON", "pattern": [{"LOWER": "zuckerberg"}]},
+    # High-frequency orgs spaCy misses in short titles
+    {"label": "ORG", "pattern": [{"LOWER": "cia"}]},
+    {"label": "ORG", "pattern": [{"LOWER": "fbi"}]},
+    {"label": "ORG", "pattern": [{"LOWER": "nato"}]},
+    {"label": "ORG", "pattern": [{"LOWER": "un"}]},
+    {"label": "ORG", "pattern": [{"LOWER": "imf"}]},
+    {"label": "ORG", "pattern": [{"LOWER": "fed"}]},
+    {"label": "ORG", "pattern": [{"LOWER": "sec"}]},
+    {"label": "ORG", "pattern": [{"LOWER": "idf"}]},
+    {"label": "ORG", "pattern": [{"LOWER": "hamas"}]},
+    {"label": "ORG", "pattern": [{"LOWER": "hezbollah"}]},
     # Data engineering tools
     {"label": "PRODUCT", "pattern": [{"LOWER": "pyspark"}]},
     {"label": "PRODUCT", "pattern": [{"LOWER": "dbt"}]},
@@ -116,15 +139,33 @@ NOISE_ENTITIES = {
     "bc", "ad", "pm", "am", "st", "nd", "rd", "th",
     "co", "inc", "ltd", "llc", "gov", "org", "corp",
     "rt", "via", "re", "cc", "mon", "tue", "wed", "thu", "fri", "sat", "sun",
-    "afd", "aita", "tldr", "imo", "imho", "fyi", "tbh",
+    "afd", "aita", "wibta", "nta", "yta", "esh", "nah", "tldr", "imo", "imho", "fyi", "tbh", "jaan",
     # YouTube channel names that leak through as entities
     "dw news", "bbc news", "bbc newscast", "al jazeera", "sky news",
     "abc news", "cnn", "msnbc", "fox news", "nbc news", "cbs news",
     "pbs news", "npr", "c-span", "euronews",
     # Weather bot boilerplate
     "iembot", "nws", "noaa",
+    # Own platform noise
+    "bluesky", "reddit", "hackernews", "hacker news",
+    # Spam and product noise
+    "manscape", "manspot", "4 guard",
+    # Sensitive content
+    "nazi", "nazis",
+    # Spam and noise
+    "handheld electric", "legacy indie radio", "handheld",
+    # Common names too generic to be useful signals
+    "mary", "john", "james", "michael", "david", "robert", "william",
     # Generic media terms
     "news", "breaking", "watch", "live", "update", "report",
+    # Generic words too broad to be signals
+    "state", "house", "donald", "vic", "idk", "bsky",
+    "signal", "signals", "youtube", "twitter", "facebook",
+    # Demonyms that should be blocked
+    "asian", "jewish", "korean", "greek", "canadian", "canadians",
+    "european", "african", "arab", "arabic",
+    # Weather/news bot garbage patterns handled by noise patterns below
+    "iembot additional details here",
 }
 
 # ── Canonical topic map ───────────────────────────────────────────────────────
@@ -144,6 +185,26 @@ CANONICAL_MAP: dict[str, str] = {
     # America cluster
     "american":         "america",
     "americans":        "america",
+    "canadian":         "canada",
+    "canadians":        "canada",
+    "korean":           "korea",
+    "greek":            "greece",
+    "german":           "germany",
+    "germans":          "germany",
+    "brazilian":        "brazil",
+    "polish":           "poland",
+    # India cluster
+    "indian":           "india",
+    "indians":          "india",
+    # Japan cluster
+    "japanese":         "japan",
+    "japaneses":        "japan",
+    # Japan cluster
+    "japanese":         "japan",
+    "japaneses":        "japan",
+    # India cluster
+    "indian":           "india",
+    "indians":          "india",
     "u.s.":             "america",
     "united states":    "america",
     "the united states":"america",
@@ -189,73 +250,59 @@ def _canonicalise(topic: str) -> str:
     """Return the canonical form of a topic, or the topic itself if not mapped."""
     return CANONICAL_MAP.get(topic, topic)
 
+# ── spaCy model loader ────────────────────────────────────────────────────────
+import spacy
+from spacy.language import Language
+
+_nlp: Optional[Language] = None
+
+def _load_model() -> Language:
+    """Load spaCy model once and cache it. Adds EntityRuler on first load."""
+    global _nlp
+    if _nlp is not None:
+        return _nlp
+    try:
+        nlp = spacy.load("en_core_web_md")
+    except OSError:
+        nlp = spacy.load("en_core_web_sm")
+    # Add EntityRuler before NER so seed patterns take priority
+    ruler = nlp.add_pipe("entity_ruler", before="ner", config={"overwrite_ents": True})
+    ruler.add_patterns(TECH_SEED_PATTERNS)
+    _nlp = nlp
+    logger.info("spaCy model loaded with %d seed patterns.", len(TECH_SEED_PATTERNS))
+    return _nlp
+
 
 # ── Noise patterns — checked against full entity string ──────────────────────
 # For patterns that can't be caught by exact set lookup
 import re as _re
 _NOISE_PATTERNS = _re.compile(
-    r'^(the |a |an |\d+$|https?://|\w{1,2}$)',
+    r'^(the |a |an |\d+$|https?://|\w{1,2}$|#|")',
     _re.IGNORECASE,
 )
-
 def _is_noise(text: str) -> bool:
+
     """Return True if the entity should be filtered out."""
+    if not text:
+        return True
+    # Block non-ASCII heavy strings (foreign language sentences)
+    non_ascii = sum(1 for c in text if ord(c) > 127)
+    if non_ascii > 2:
+        return True
+    if 'http' in text or '](https' in text or text.startswith('www.'):
+        return True
+    if text[0].isdigit():
+        return True
+    if len(text.split()) >= 4:
+        return True
     if text in NOISE_ENTITIES:
         return True
     if _NOISE_PATTERNS.match(text):
         return True
-    # filter carriage returns (weather bot multiline garbage)
     if '\r' in text or '\n' in text or len(text) > 40:
         return True
     return False
 
-# ── Model loader ──────────────────────────────────────────────────────────────
-_nlp = None
-
-
-def _load_model():
-    """
-    Load spaCy model once at first call. Lazy so the import doesn't
-    block container startup if the model isn't downloaded yet.
-
-    Uses en_core_web_md (medium) if available — better NER accuracy
-    for tech content. Falls back to en_core_web_sm (small).
-
-    Install:
-      python -m spacy download en_core_web_md   # recommended
-      python -m spacy download en_core_web_sm   # fallback
-    """
-    global _nlp
-    if _nlp is not None:
-        return _nlp
-
-    import spacy
-
-    for model in ("en_core_web_md", "en_core_web_sm"):
-        try:
-            _nlp = spacy.load(model, disable=["parser", "lemmatizer"])
-            # Disable parser and lemmatizer — we only need NER and tokenizer.
-            # This makes the pipeline ~30% faster.
-            logger.info("spaCy model loaded: %s", model)
-            break
-        except OSError:
-            continue
-
-    if _nlp is None:
-        raise RuntimeError(
-            "No spaCy model found. Run: python -m spacy download en_core_web_md"
-        )
-
-    # Add EntityRuler BEFORE the NER component so seed patterns take priority.
-    # overwrite_ents=True means our patterns win if NER disagrees.
-    ruler = _nlp.add_pipe("entity_ruler", before="ner", config={"overwrite_ents": True})
-    ruler.add_patterns(TECH_SEED_PATTERNS)
-    logger.info("EntityRuler loaded with %d seed patterns.", len(TECH_SEED_PATTERNS))
-
-    return _nlp
-
-
-# ── Public API ────────────────────────────────────────────────────────────────
 
 def extract_topics(text: str, max_topics: int = 8) -> list[str]:
     """

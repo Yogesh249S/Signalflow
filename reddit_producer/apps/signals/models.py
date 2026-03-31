@@ -166,6 +166,63 @@ class TopicSummary(models.Model):
         return f"{self.topic} @ {self.generated_at:%Y-%m-%d %H:%M}"
 
 
+class WatchedTopic(models.Model):
+    """
+    A user's webhook subscription for a topic.
+    Written by POST /api/v1/alerts/watch/.
+    Read by the alert_dispatcher task inside the trending pipeline.
+    """
+    from django.contrib.auth.models import User
+
+    user            = models.ForeignKey(
+        "auth.User", on_delete=models.CASCADE, related_name="watched_topics"
+    )
+    topic           = models.TextField()
+    webhook_url     = models.TextField()
+    min_trend_score = models.FloatField(default=0.0)
+    min_platforms   = models.IntegerField(default=1)
+    cooldown_minutes= models.IntegerField(default=60)
+    is_active       = models.BooleanField(default=True)
+    created_at      = models.DateTimeField(auto_now_add=True)
+    last_fired_at   = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed  = False
+        db_table = "watched_topics"
+        unique_together = [("user", "topic", "webhook_url")]
+
+    def __str__(self):
+        status = "✓" if self.is_active else "✗"
+        return f"{status} {self.user_id}→{self.topic} @ {self.webhook_url[:40]}"
+
+
+class AlertDelivery(models.Model):
+    """
+    Audit log of every webhook attempt fired by the alert dispatcher.
+    """
+    watched_topic   = models.ForeignKey(
+        WatchedTopic, on_delete=models.CASCADE, related_name="deliveries"
+    )
+    topic           = models.TextField()
+    fired_at        = models.DateTimeField(auto_now_add=True)
+    trend_score     = models.FloatField(null=True)
+    platform_count  = models.IntegerField(null=True)
+    platforms       = models.JSONField(default=list)
+    http_status     = models.IntegerField(null=True)
+    success         = models.BooleanField(default=False)
+    error_message   = models.TextField(null=True, blank=True)
+    latency_ms      = models.IntegerField(null=True)
+
+    class Meta:
+        managed  = False
+        db_table = "alert_deliveries"
+        ordering = ["-fired_at"]
+
+    def __str__(self):
+        ok = "✓" if self.success else "✗"
+        return f"{ok} {self.topic} → {self.http_status} ({self.fired_at:%H:%M})"
+
+
 class SourceConfig(models.Model):
     """
     Replaces: SubredditConfig

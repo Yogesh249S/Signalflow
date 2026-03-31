@@ -189,6 +189,12 @@ footer{padding:40px 32px;border-top:1px solid var(--border);display:grid;grid-te
 @media(max-width:1100px){.stats-grid{grid-template-columns:1fr !important}}
 @media(max-width:900px){.stats-grid{grid-template-columns:1fr}.topics-grid{grid-template-columns:1fr}.intel-grid{grid-template-columns:1fr}.platform-grid{grid-template-columns:1fr 1fr}.api-grid{grid-template-columns:1fr}.connected-grid{grid-template-columns:1fr 1fr}footer{grid-template-columns:1fr}nav .nav-links{display:none}}
 @media(max-width:600px){.platform-grid{grid-template-columns:1fr}.connected-grid{grid-template-columns:1fr}.stat-sub-grid{grid-template-columns:1fr 1fr}}
+.pill{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:6px 14px;border-radius:4px;border:1px solid var(--border2);color:var(--sub);cursor:pointer;transition:all .2s;background:rgba(255,255,255,0.02)}
+.pill:hover{border-color:var(--accent);color:var(--text)}
+.pill.on{background:var(--accent3);border-color:var(--accent);color:var(--accent);box-shadow:0 0 20px rgba(0,212,255,.12)}
+.pill{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:6px 14px;border-radius:4px;border:1px solid var(--border2);color:var(--sub);cursor:pointer;transition:all .2s;background:rgba(255,255,255,0.02)}
+.pill:hover{border-color:var(--accent);color:var(--text)}
+.pill.on{background:var(--accent3);border-color:var(--accent);color:var(--accent);box-shadow:0 0 20px rgba(0,212,255,.12)}
 </style>
 </head>
 <body>
@@ -200,8 +206,10 @@ footer{padding:40px 32px;border-top:1px solid var(--border);display:grid;grid-te
       <a href="#trending" class="nav-link">Trending</a>
       <a href="#intelligence" class="nav-link">Intelligence</a>
       <a href="#propagation" class="nav-link">Propagation</a>
-      <a href="#dashboard" class="nav-link">Dashboard</a>
       <a href="#api" class="nav-link">API</a>
+      <a href="/architecture.html" class="nav-link">Architecture</a>
+      <a href="/grafana/d/signalflow-topics/signalflow-topic-intelligence?orgId=1" class="nav-link" target="_blank">Grafana</a>
+      <a href="/docs" class="nav-link">Docs</a>
     </div>
   </div>
   <div class="nav-right">
@@ -279,8 +287,20 @@ footer{padding:40px 32px;border-top:1px solid var(--border);display:grid;grid-te
 </section>
 
 <section class="section" id="trending">
-  <div class="section-head"><div class="section-title">Trending Topics</div><div style="display:flex;align-items:center;gap:12px"><span class="section-count" id="trend-ts"></span><span class="see-all" onclick="window.open('/api/v1/trending/?platform=all&window_minutes=240&limit=25')">View API ↗</span></div></div>
+  <div class="section-head"><div class="section-title">Trending Topics</div><div style="display:flex;align-items:center;gap:12px"><span class="section-count"><span id="window-label">Last 4h</span> · ranked by velocity · <span id="trend-ts"></span></span><span class="see-all" onclick="window.open('/api/v1/trending/?platform=all&window_minutes='+activeWindow+'&limit=20')">View API ↗</span></div></div>
   <div class="section-rule"></div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--sub)">Window</span>
+    <div id="window-row" style="display:flex;gap:4px">
+      <div class="pill" data-w="60" onclick="setWindow(60,this)">1h</div>
+      <div class="pill" data-w="180" onclick="setWindow(180,this)">3h</div>
+      <div class="pill on" data-w="240" onclick="setWindow(240,this)">4h</div>
+      <div class="pill" data-w="360" onclick="setWindow(360,this)">6h</div>
+      <div class="pill" data-w="1440" onclick="setWindow(1440,this)">24h</div>
+      <div class="pill" data-w="10080" onclick="setWindow(10080,this)">7d</div>
+      <div class="pill" data-w="43200" onclick="setWindow(43200,this)">30d</div>
+    </div>
+  </div>
   <div class="topics-grid" id="topics-grid"><div class="skel-card skeleton"></div><div class="skel-card skeleton"></div><div class="skel-card skeleton"></div><div class="skel-card skeleton"></div><div class="skel-card skeleton"></div><div class="skel-card skeleton"></div></div>
 </section>
 
@@ -301,11 +321,8 @@ footer{padding:40px 32px;border-top:1px solid var(--border);display:grid;grid-te
 <section class="section" id="dashboard" style="background:var(--bg2)">
   <div class="section-head"><div class="section-title">Signal Intelligence Dashboard</div><span class="section-count">Topic traction · sentiment · cross-platform lead/lag</span></div>
   <div class="section-rule"></div>
-  <p style="font-size:14px;color:var(--sub);line-height:1.8;margin-bottom:22px;max-width:680px">Live Grafana dashboard showing topic velocity, sentiment shifts and cross-platform lead/lag.</p>
-  <div class="grafana-wrap">
-    <div class="grafana-bar"><span class="grafana-title">SIGNALFLOW — TOPIC INTELLIGENCE</span><span class="grafana-badge">● LIVE · 1m refresh</span></div>
-    <div id="grafana-content" class="grafana-fallback"><div style="font-size:32px;opacity:.3">📊</div><div style="font-family:'JetBrains Mono',monospace;font-size:12px;text-align:center;line-height:1.9;color:var(--sub)">Dashboard loading...<br><a href="#" onclick="openGrafana();return false" style="color:var(--accent);font-size:11px">Open in new tab ↗</a></div></div>
-  </div>
+  <p style="font-size:14px;color:var(--sub);line-height:1.8;margin-bottom:22px;max-width:680px">Live Grafana dashboard showing topic velocity, sentiment shifts, and cross-platform lead/lag. Opens in a new tab.</p>
+  <a href="/grafana/d/signalflow-topics/signalflow-topic-intelligence?orgId=1" target="_blank" style="display:inline-flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;letter-spacing:.08em;color:var(--accent);border:1px solid rgba(0,212,255,.4);padding:12px 24px;border-radius:6px;transition:all .2s;text-transform:uppercase;text-decoration:none" onmouseover="this.style.background='rgba(0,212,255,0.08)'" onmouseout="this.style.background='transparent'">📊 &nbsp;Open Live Dashboard ↗</a>
 </section>
 
 <section class="section" id="platforms">
@@ -404,6 +421,15 @@ var PF_SVG={
 var PF_LABEL={reddit:'REDDIT',hackernews:'HN',bluesky:'BLUESKY',youtube:'YOUTUBE'};
 var PFC={reddit:'var(--reddit)',hackernews:'var(--hn)',bluesky:'var(--bsky)',youtube:'var(--yt)'};
 function pfIcon(p){var svg=PF_SVG[p]||'';var lbl=PF_LABEL[p]||p.toUpperCase();return'<span class="pf-icon">'+svg+'<span>'+lbl+'</span></span>';}
+var showLimit=20;
+var activeWindow=240;
+function setWindow(w,el){
+  activeWindow=w;
+  document.querySelectorAll('#window-row .pill').forEach(function(p){p.classList.remove('on')});
+  el.classList.add('on');
+  showLimit=20;
+  loadTrending();
+}
 var allTopics=[],activeFilter='all',currentTrendingTopic='iran';
 var GRAFANA_URL='https://signalflo.xyz/grafana/d/signalflow-topics/signalflow-topic-intelligence?orgId=1&kiosk&refresh=30s';
 function openGrafana(){if(GRAFANA_URL)window.open(GRAFANA_URL,'_blank');}
@@ -415,7 +441,7 @@ function updateClock(){var el=document.getElementById('footer-clock');if(el)el.t
 setInterval(updateClock,1000);updateClock();
 function setFilterByPlatform(pf){document.querySelectorAll('.filter-pill').forEach(function(p){p.classList.remove('active');if(p.getAttribute('data-pf')===pf)p.classList.add('active');});activeFilter=pf;renderTopics(allTopics);var el=document.getElementById('trending');if(el)el.scrollIntoView({behavior:'smooth'});}
 function setFilter(pf,el){activeFilter=pf;document.querySelectorAll('.filter-pill').forEach(function(p){p.classList.remove('active')});el.classList.add('active');renderTopics(allTopics);}
-function filterTopics(){renderTopics(allTopics);}
+function filterTopics(){showLimit=48;renderTopics(allTopics);}
 function getFilteredTopics(topics){var q=(document.getElementById('search-input').value||'').toLowerCase().trim();return topics.filter(function(t){if(activeFilter==='cross')return t.cross_platform;if(activeFilter!=='all')return(t.platforms||[]).indexOf(activeFilter)>=0;return true;}).filter(function(t){return!q||t.topic.toLowerCase().indexOf(q)>=0;});}
 function renderTopics(topics){
   allTopics=topics;
@@ -424,7 +450,7 @@ function renderTopics(topics){
   if(!filtered.length){grid.innerHTML='<div style="padding:48px;color:var(--sub);font-family:\'JetBrains Mono\',monospace;font-size:12px">no topics match filter</div>';return;}
   var max=filtered[0].trend_score||1;
   grid.style.opacity='0';grid.style.transition='opacity .3s';
-  grid.innerHTML=filtered.slice(0,24).map(function(t){
+  grid.innerHTML=filtered.slice(0, showLimit).map(function(t){
     var pct=((t.trend_score/max)*100).toFixed(1);
     var s=t.avg_sentiment||0;
     var sc=s>0.05?'var(--green)':s<-0.05?'var(--red)':'var(--sub)';
@@ -439,6 +465,12 @@ function renderTopics(topics){
       +'</div>';
   }).join('');
   requestAnimationFrame(function(){grid.style.opacity='1';});
+  if(filtered.length>showLimit){
+    var btn=document.createElement('div');
+    btn.style.cssText='grid-column:1/-1;padding:20px;text-align:center;background:var(--bg)';
+    btn.innerHTML='<button onclick="showLimit+=20;renderTopics(allTopics)" style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--sub);border:1px solid var(--border2);padding:8px 20px;border-radius:6px;background:none;cursor:pointer;text-transform:uppercase">Show More ('+(filtered.length-showLimit)+' remaining)</button>';
+    document.getElementById('topics-grid').appendChild(btn);
+  }
 }
 function renderPropagation(topics){
   var cross=topics.filter(function(t){return t.cross_platform&&(t.platforms||[]).length>=2;});
@@ -544,10 +576,12 @@ function loadStats(){
   }).catch(function(e){console.warn('stats:',e);});
 }
 function loadTrending(){
-  fetch('/api/v1/trending/?platform=all&window_minutes=240&limit=25',{headers:{Accept:'application/json'}}).then(function(r){return r.json()}).then(function(data){
+  fetch('/api/v1/trending/?platform=all&window_minutes='+activeWindow+'&limit=20',{headers:{Accept:'application/json'}}).then(function(r){return r.json()}).then(function(data){
     var topics=data.topics||[];
     var kt=document.getElementById('kpi-topics-inline');if(kt)kt.textContent=topics.length;
     var tt=document.getElementById('trend-ts');if(tt)tt.textContent=(data.generated_at||'').slice(11,19)+'z';
+    var wl=document.getElementById('window-label');
+    if(wl){var wmap={60:'Last 1h',180:'Last 3h',240:'Last 4h',360:'Last 6h',1440:'Last 24h',10080:'Last 7d',43200:'Last 30d'};wl.textContent=wmap[activeWindow]||'Last '+activeWindow+'m';}
     renderTopics(topics);renderPropagation(topics);renderPlatforms(topics);renderIntelligence(topics);
     if(topics.length){currentTrendingTopic=topics[0].topic;API_ENDPOINTS.pulse.url='/api/v1/pulse/?topic='+encodeURIComponent(currentTrendingTopic);}
   }).catch(function(e){console.warn('trending:',e);});

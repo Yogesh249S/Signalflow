@@ -13,6 +13,7 @@ from .views import (request_api_access,
     home, health,
     SignalViewSet,
     PulseView, TrendingView, CompareView,
+    DivergenceLeaderboardView, TopicAlertView,
     stats, stats_timeline, stats_keywords, platform_totals,
 )
 
@@ -30,6 +31,12 @@ urlpatterns = [
     path("pulse/",    PulseView.as_view(),    name="pulse"),
     path("trending/", TrendingView.as_view(), name="trending"),
     path("compare/",  CompareView.as_view(),  name="compare"),
+
+    # Addition 3: Divergence leaderboard
+    path("divergence/leaderboard/", DivergenceLeaderboardView.as_view(), name="divergence-leaderboard"),
+
+    # Addition 1: Topic alert webhooks (authenticated)
+    path("alerts/watch/", TopicAlertView.as_view(), name="topic-alert-watch"),
 
     # Stats (replaces /api/stats/)
     path("stats/",           stats,           name="stats"),

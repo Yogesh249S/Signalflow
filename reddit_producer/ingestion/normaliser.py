@@ -98,8 +98,11 @@ def _normalise_reddit(raw: dict) -> Optional[dict]:
             raw_score    = raw.get("score", 0),
             comment_count= raw.get("num_comments", 0),
             extra        = {
-                "upvote_ratio":  raw.get("upvote_ratio"),
-                "poll_priority": raw.get("poll_priority"),
+                "upvote_ratio":      raw.get("upvote_ratio"),
+                "poll_priority":     raw.get("poll_priority"),
+                "parent_post_id":    raw.get("parent_post_id"),
+                "parent_post_title": raw.get("parent_post_title"),
+                "is_comment":        raw.get("parent_post_id") is not None,
             },
         )
     except Exception as e:

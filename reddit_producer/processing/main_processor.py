@@ -114,8 +114,11 @@ def _get_sentiment(signal: dict) -> tuple[float, str]:
     """
     sid = signal["id"]
     if sid not in _sentiment_cache:
-        text = signal.get("title") or signal.get("body") or ""
-        _sentiment_cache[sid] = analyze_sentiment(text)
+        #text = signal.get("title") or signal.get("body") or ""
+        #_sentiment_cache[sid] = analyze_sentiment(text)
+        is_comment = bool((signal.get("extra") or {}).get("is_comment"))
+        text = signal.get("body") or signal.get("title") or "" if is_comment else signal.get("title") or signal.get("body") or ""
+        _sentiment_cache[sid] = analyze_sentiment(text, is_comment=is_comment)
     return _sentiment_cache[sid]
 
 
@@ -153,7 +156,14 @@ def flush_signal_batch(signal_batch: list[dict]) -> None:
         ]
         topic_results = extract_topics_batch(texts)  # single nlp.pipe() call
         for sig, topics in zip(signal_batch, topic_results):
-            sig["topics"] = topics
+            sig["topics"] = [
+                t for t in topics
+                if t
+                and not t.startswith('#')
+                and not t.startswith('"')
+                and len(t) >= 2
+                and any(c.isalpha() for c in t)
+            ]
 
         # ── Step 3: Keyword extraction (simple, fast, complements NER) ────────
         # Topics = named entities (who/what).

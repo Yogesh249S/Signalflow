@@ -10,7 +10,8 @@ Writes results to topic_summaries table.
 Provider is controlled by LLM_PROVIDER env var:
   openai    → gpt-4o-mini      (~$0.015/hr at current volume)
   anthropic → claude-haiku-3-5 (comparable cost)
-  groq      → llama-3.1-8b     (free tier, slower)
+  groq      → llama-3.3-70b     (free tier, faster)
+  gemini    → gemini-2.0-flash  (free tier via Google AI Studio, higher quality)
 
 Architecture: sits OUTSIDE the hot path.
   Kafka → processing → signals table  (unchanged, no latency impact)
@@ -48,12 +49,77 @@ PG = dict(
     port=int(os.getenv("POSTGRES_PORT", 5432)),
 )
 
-#LLM_PROVIDER   = os.getenv("LLM_PROVIDER", "openai")          # openai | anthropic | groq
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
 import itertools
 
 OPENAI_KEY    = os.getenv("OPENAI_API_KEY", "")
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+GEMINI_KEY    = os.getenv("GEMINI_API_KEY", "")  # kept for single-key fallback
+
+# ── Gemini key pool — round-robin across multiple keys to multiply rate limit ──
+# Add keys as GEMINI_API_KEY_1, GEMINI_API_KEY_2, etc. in .env / docker-compose.
+# Falls back to GEMINI_API_KEY if no numbered keys found.
+# Free tier = 15 req/min per key — 2 keys = 30 req/min combined.
+# KEY ROTATION HAPPENS AT THE WORKER LEVEL (run_once), not inside call_gemini.
+# Each worker owns one key for the full run — keys never contend within a single
+# topic's retry loop.
+def _load_gemini_keys() -> list:
+    keys = []
+    i = 1
+    while True:
+        k = os.getenv(f"GEMINI_API_KEY_{i}", "")
+        if not k:
+            break
+        keys.append(k)
+        i += 1
+    if not keys:
+        k = os.getenv("GEMINI_API_KEY", "")
+        if k:
+            keys.append(k)
+    return keys
+
+GEMINI_KEYS = _load_gemini_keys()
+_gemini_key_cycle = itertools.cycle(GEMINI_KEYS) if GEMINI_KEYS else iter([])
+
+# ── Daily quota tracking ───────────────────────────────────────────────────────
+# 2000 req/day hard ceiling across ALL keys combined.
+# Each key is a separate Google account = separate 1500 req/day quota at Google,
+# but we self-impose 2000 total so we never get close to any single key's limit.
+# Counters reset at midnight UTC via _maybe_reset_daily_counters().
+DAILY_REQUEST_LIMIT = int(os.getenv("GEMINI_DAILY_REQUEST_LIMIT", 2000))
+
+# Per-key daily counters — index matches GEMINI_KEYS list
+_daily_counts: list[int] = []      # populated after GEMINI_KEYS is known
+_daily_reset_date: str = ""        # "YYYY-MM-DD" — date of last reset
+
+def _init_daily_counters():
+    global _daily_counts, _daily_reset_date
+    _daily_counts = [0] * len(GEMINI_KEYS)
+    _daily_reset_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+def _maybe_reset_daily_counters():
+    """Reset per-key counters if we've crossed into a new UTC day."""
+    global _daily_counts, _daily_reset_date
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if today != _daily_reset_date:
+        log.info(f"new UTC day ({today}) — resetting daily quota counters")
+        _daily_counts = [0] * len(GEMINI_KEYS)
+        _daily_reset_date = today
+
+def _total_daily_requests() -> int:
+    return sum(_daily_counts)
+
+def _increment_key_counter(key: str):
+    if key in GEMINI_KEYS:
+        _daily_counts[GEMINI_KEYS.index(key)] += 1
+
+def _daily_quota_log():
+    total = _total_daily_requests()
+    per_key = ", ".join(
+        f"key{i+1}={_daily_counts[i]}" for i in range(len(GEMINI_KEYS))
+    )
+    remaining = DAILY_REQUEST_LIMIT - total
+    log.info(f"daily quota: {total}/{DAILY_REQUEST_LIMIT} used ({per_key}) — {remaining} remaining")
 
 # ── Groq key pool — round-robin across multiple keys to multiply rate limit ──
 # Add keys as GROQ_API_KEY_1, GROQ_API_KEY_2, GROQ_API_KEY_3 in .env
@@ -175,7 +241,7 @@ async def call_groq(
         "https://api.groq.com/openai/v1/chat/completions",
         headers={"Authorization": f"Bearer {key}"},
         json={
-            "model": "llama-3.1-8b-instant",
+            "model": "llama-3.3-70b-versatile",
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": 300,
             "temperature": 0.3,
@@ -189,17 +255,104 @@ async def call_groq(
     return text, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)
 
 
+async def call_gemini(
+    prompt: str,
+    client: httpx.AsyncClient,
+    api_key: str = "",
+) -> tuple[str, int, int]:
+    """Gemini 2.0 Flash via Google AI Studio.
+
+    Uses only the key it is given — NO internal key switching.
+    Key rotation happens at the worker level in run_once() so each key's
+    rate limit budget is consumed independently. Alternating keys inside
+    this function burns both keys simultaneously on a single topic's retry
+    loop, which is what caused the cascade of 429s in the logs.
+
+    Backoff: 10s then 20s. Free tier resets per minute so 10s is enough
+    to recover partial headroom without waiting a full 60s.
+    """
+    key = api_key or (GEMINI_KEYS[0] if GEMINI_KEYS else "")
+    key_idx = (GEMINI_KEYS.index(key) + 1) if key in GEMINI_KEYS else "?"
+
+    for attempt in range(3):  # 1 attempt + 2 retries on this key only
+        if attempt > 0:
+            wait = attempt * 10  # 10s, 20s
+            log.info(f"Gemini 429 — waiting {wait}s before retry {attempt}/2 (key{key_idx})")
+            await asyncio.sleep(wait)
+
+        resp = await client.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}",
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": 0.3,
+                    "maxOutputTokens": 300,
+                },
+            },
+            timeout=60,
+        )
+
+        if resp.status_code == 429:
+            if attempt == 2:
+                resp.raise_for_status()  # exhausted — caller logs the warning and moves on
+            continue
+
+        resp.raise_for_status()
+        _increment_key_counter(key)   # count successful requests against daily quota
+        data = resp.json()
+        text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        usage = data.get("usageMetadata", {})
+        return text, usage.get("promptTokenCount", 0), usage.get("candidatesTokenCount", 0)
+
+
 async def call_llm(
     prompt: str,
     client: httpx.AsyncClient,
     api_key: str = "",
 ) -> tuple[str, int, int]:
-    if LLM_PROVIDER == "anthropic":
+    if LLM_PROVIDER == "gemini":
+        return await call_gemini(prompt, client, api_key=api_key)
+    elif LLM_PROVIDER == "anthropic":
         return await call_anthropic(prompt, client)
     elif LLM_PROVIDER == "groq":
         return await call_groq(prompt, client, api_key=api_key)
     else:
         return await call_openai(prompt, client)
+
+
+# ── PREFLIGHT CHECK ──────────────────────────────────────────────────────────
+
+async def gemini_keys_available(client: httpx.AsyncClient) -> bool:
+    """
+    Fire one cheap probe request per key before starting a run.
+    If ALL keys return 429 immediately, the daily quota is likely exhausted
+    and there's no point hammering 20 topics × 3 retries each.
+    Returns True if at least one key is responsive.
+    """
+    if LLM_PROVIDER != "gemini":
+        return True
+
+    probe_prompt = '{"test": true}'  # minimal token usage
+    available = []
+    for i, key in enumerate(GEMINI_KEYS):
+        try:
+            resp = await client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}",
+                json={"contents": [{"parts": [{"text": probe_prompt}]}],
+                      "generationConfig": {"maxOutputTokens": 5}},
+                timeout=15,
+            )
+            if resp.status_code == 429:
+                log.warning(f"preflight: key{i+1} is rate-limited (429)")
+                available.append(False)
+            else:
+                log.info(f"preflight: key{i+1} is responsive ({resp.status_code})")
+                available.append(True)
+        except Exception as e:
+            log.warning(f"preflight: key{i+1} error — {e}")
+            available.append(False)
+
+    return any(available)
 
 
 # ── PROMPTS ───────────────────────────────────────────────────────────────────
@@ -209,9 +362,6 @@ def build_prompt(topic: str, signals: list[dict], platform_sentiment: dict) -> s
     Build a focused prompt. We send signal titles/bodies (not raw API responses)
     to the LLM. ~500 tokens input, ~150 tokens output per topic.
     """
-    # Format signal snippets — keep it tight to save tokens
-    # Noise patterns — single-word reactions and mention-heavy posts add
-    # zero semantic value to the LLM prompt and waste tokens
     import re
     _noise_re = re.compile(
         r'^(lol|lmao|wow|wtf|omg|this|same|yes|no|ok|okay|true|facts?|thread|'
@@ -224,14 +374,11 @@ def build_prompt(topic: str, signals: list[dict], platform_sentiment: dict) -> s
         text = (s.get("title") or s.get("body") or "").strip()
         if not text:
             continue
-        # Strip URLs
         text = re.sub(r'https?://\S+', '', text).strip()
         if len(text) < 8:
             continue
-        # Skip pure reaction posts
         if _noise_re.match(text):
             continue
-        # Skip posts that are mostly mentions/hashtags (Bluesky spam pattern)
         words = text.split()
         specials = len(re.findall(r'[@#]\w+', text))
         if len(words) > 0 and specials / len(words) > 0.6:
@@ -242,7 +389,6 @@ def build_prompt(topic: str, signals: list[dict], platform_sentiment: dict) -> s
     if not snippets:
         return ""
 
-    # Platform breakdown for divergence
     pf_lines = []
     for pf, data in platform_sentiment.items():
         pf_lines.append(
@@ -285,24 +431,15 @@ def ensure_schema(conn):
 
 
 def get_trending_topics(conn) -> list[dict]:
-    """
-    Get topics with enough signals in the window.
-    Mirrors the logic in topic_aggregator but reads directly from signals.
-    """
-    # Stopwords, abbreviations, and known garbage patterns spaCy extracts
-    # as named entities but carry no topic signal value
     TOPIC_BLOCKLIST = (
-        # single-token stopwords
         "un", "us", "uk", "eu", "it", "he", "she", "we", "me", "my",
         "the", "this", "that", "they", "them", "you", "your", "our",
         "am", "pm", "st", "nd", "rd", "th",
         "co", "inc", "ltd", "llc", "gov", "org",
         "rt", "via", "re", "cc",
-        # known YouTube channel names that leak through
         "bbc news", "bbc newscast", "dw news", "al jazeera", "sky news",
         "abc news", "cnn", "msnbc", "fox news", "nbc news", "cbs news",
         "ryan exclusive:", "c - computerphile", "upfront",
-        # weather bot boilerplate
         "iembot", "additional details here",
     )
 
@@ -340,7 +477,6 @@ def get_trending_topics(conn) -> list[dict]:
 
 
 def get_signals_for_topic(conn, topic: str) -> list[dict]:
-    """Get top signals for a topic, ordered by trending_score desc."""
     sql = """
         SELECT
             platform,
@@ -362,7 +498,6 @@ def get_signals_for_topic(conn, topic: str) -> list[dict]:
 
 
 def get_platform_sentiment(signals: list[dict]) -> dict:
-    """Aggregate sentiment per platform from signal list."""
     result = {}
     for s in signals:
         pf = s.get("platform", "unknown")
@@ -377,7 +512,6 @@ def get_platform_sentiment(signals: list[dict]) -> dict:
 
 
 def summary_is_fresh(conn, topic: str) -> bool:
-    """Return True if we generated a summary for this topic within TTL window."""
     sql = """
         SELECT 1 FROM topic_summaries
         WHERE topic = %s
@@ -404,7 +538,20 @@ def write_summary(conn, topic: str, topic_meta: dict, parsed: dict,
             %s, %s, %s, %s,
             %s, %s, %s, %s
         )
-        ON CONFLICT DO NOTHING
+        ON CONFLICT (topic, window_minutes) DO UPDATE SET
+            summary_text = EXCLUDED.summary_text,
+            divergence_explanation = EXCLUDED.divergence_explanation,
+            dominant_narrative = EXCLUDED.dominant_narrative,
+            emerging_angle = EXCLUDED.emerging_angle,
+            generated_at = EXCLUDED.generated_at,
+            signal_count = EXCLUDED.signal_count,
+            platform_count = EXCLUDED.platform_count,
+            platforms = EXCLUDED.platforms,
+            avg_sentiment = EXCLUDED.avg_sentiment,
+            model_used = EXCLUDED.model_used,
+            prompt_tokens = EXCLUDED.prompt_tokens,
+            completion_tokens = EXCLUDED.completion_tokens,
+            latency_ms = EXCLUDED.latency_ms
     """
     with conn.cursor() as cur:
         cur.execute(sql, (
@@ -445,8 +592,6 @@ async def process_topic(
         log.debug(f"skip {topic!r} — no signals found")
         return None
 
-    # Spam guard — if one author accounts for >80% of signals the topic
-    # is almost certainly a bot or repeat-poster, not organic discourse
     authors = [s.get("author") for s in signals if s.get("author")]
     if authors:
         top_author_share = max(authors.count(a) for a in set(authors)) / len(authors)
@@ -468,9 +613,7 @@ async def process_topic(
         log.warning(f"LLM error for {topic!r}: {e}")
         return None
 
-    # Parse JSON response
     try:
-        # Strip markdown code fences if present
         raw_clean = raw.strip()
         if raw_clean.startswith("```"):
             raw_clean = raw_clean.split("```")[1]
@@ -484,7 +627,8 @@ async def process_topic(
     model_name = {
         "openai": "gpt-4o-mini",
         "anthropic": "claude-haiku-4-5-20251001",
-        "groq": "llama-3.1-8b-instant",
+        "groq": "llama-3.3-70b-versatile",
+        "gemini": "gemini-2.0-flash",
     }.get(LLM_PROVIDER, LLM_PROVIDER)
 
     await asyncio.to_thread(
@@ -499,20 +643,44 @@ async def process_topic(
     return parsed
 
 
-# Max concurrent LLM calls — keeps us inside Groq/OpenAI rate limits on cloud.
-# Raise to 10 if on a paid tier with higher RPM.
-# With 3 Groq keys round-robin = 90 req/min combined limit.
-# concurrency=5 + 2.5s sleep = ~24 req/min per key = 72 req/min total (safe)
-# If you only have 1 key, set SUMMARISER_CONCURRENCY=2 in .env
-LLM_CONCURRENCY = int(os.getenv("SUMMARISER_CONCURRENCY", 5))
+# Gemini free tier: 15 req/min per key.
+# With 2 keys and concurrency=2: each worker owns one key, processes topics
+# serially within that key. Inter-topic sleep of 5s = 12 req/min per key
+# (well under the 15 limit), 24 req/min total across both keys.
+LLM_CONCURRENCY = int(os.getenv("SUMMARISER_CONCURRENCY", 2))
 
 
 async def run_once(conn, client: httpx.AsyncClient):
+    # Brief pause at start of every run — gives Gemini's per-minute window
+    # time to recover if the previous run left the keys partially exhausted.
+    _maybe_reset_daily_counters()   # reset counters if it's a new UTC day
+
+    if LLM_PROVIDER == "gemini":
+        _daily_quota_log()
+        if _total_daily_requests() >= DAILY_REQUEST_LIMIT:
+            log.warning(
+                f"daily quota already at limit ({DAILY_REQUEST_LIMIT}) before run started. "
+                f"Skipping. Resets at midnight UTC."
+            )
+            return
+
+    log.info("waiting 65s for Gemini rate-limit window to recover...")
+    await asyncio.sleep(65)
+
+    # Preflight — probe all keys before burning quota on 20 topics.
+    # If every key is still 429 after the wait, daily quota is likely exhausted.
+    # Abort the run and sleep until the next poll interval.
+    if not await gemini_keys_available(client):
+        log.error(
+            "preflight failed — all Gemini keys are rate-limited. "
+            "Daily quota may be exhausted. Check https://aistudio.google.com/apikey "
+            "Skipping this run entirely."
+        )
+        return
+
     topics = await asyncio.to_thread(get_trending_topics, conn)
     log.info(f"found {len(topics)} topics with >={MIN_SIGNALS} signals")
 
-    # prioritise topics that haven't been summarised recently
-    # so high-value topics don't get starved by 429s hitting lower topics first
     async def get_age(t):
         fresh = await asyncio.to_thread(summary_is_fresh, conn, t['topic'])
         return (1 if fresh else 0, -t.get('signal_count', 0))
@@ -523,25 +691,57 @@ async def run_once(conn, client: httpx.AsyncClient):
     log.info(f"topics reordered — stale first, by signal count")
 
     semaphore = asyncio.Semaphore(LLM_CONCURRENCY)
-    # Assign one Groq key per worker slot — each worker owns its key
-    # for the full run so keys don't contend with each other.
-    # Worker 0 → key 0, worker 1 → key 1, etc. (wraps if fewer keys than workers)
-    worker_keys = [
-        GROQ_KEYS[i % len(GROQ_KEYS)] if GROQ_KEYS else ""
-        for i in range(LLM_CONCURRENCY)
-    ]
-    worker_id = 0
-    worker_id_lock = asyncio.Lock()
+
+    # ── Key pool + daily quota gate ───────────────────────────────────────────
+    # For Gemini: 4 keys, each owned by a different Google account.
+    # Worker assignment: topics are distributed round-robin across available keys
+    # so each key handles ~1/4 of the topics per run.
+    # Before each topic, check the combined daily total against the 2000 limit.
+    _key_pool = {
+        "groq": GROQ_KEYS,
+        "gemini": GEMINI_KEYS,
+    }.get(LLM_PROVIDER, [])
+
+    # Round-robin counter — increments per topic so consecutive topics
+    # go to different keys, distributing load evenly across all 4.
+    rr_counter = 0
+    rr_lock = asyncio.Lock()
 
     async def process_with_sem(topic_meta: dict) -> Optional[dict]:
-        nonlocal worker_id
-        async with worker_id_lock:
-            my_key = worker_keys[worker_id % LLM_CONCURRENCY]
-            worker_id += 1
+        nonlocal rr_counter
+
+        # Hard daily quota gate — checked before every topic
+        if LLM_PROVIDER == "gemini" and _total_daily_requests() >= DAILY_REQUEST_LIMIT:
+            log.warning(
+                f"daily quota reached ({DAILY_REQUEST_LIMIT} requests) — "
+                f"skipping remaining topics for this run"
+            )
+            return None
+
+        async with rr_lock:
+            # Pick next key in round-robin order, skip any that are individually
+            # over their fair share (DAILY_REQUEST_LIMIT / num_keys)
+            n_keys = len(_key_pool) if _key_pool else 1
+            per_key_soft_limit = DAILY_REQUEST_LIMIT // n_keys
+            # Try each key starting from round-robin position
+            chosen_key = ""
+            for offset in range(n_keys):
+                idx = (rr_counter + offset) % n_keys
+                key = _key_pool[idx] if _key_pool else ""
+                key_count = _daily_counts[idx] if LLM_PROVIDER == "gemini" and _daily_counts else 0
+                if key_count < per_key_soft_limit:
+                    chosen_key = key
+                    rr_counter = (idx + 1) % n_keys  # advance past chosen key
+                    break
+            if not chosen_key:
+                # All keys over soft limit — use strict round-robin as fallback
+                chosen_key = _key_pool[rr_counter % n_keys] if _key_pool else ""
+                rr_counter = (rr_counter + 1) % max(n_keys, 1)
+
         async with semaphore:
-            result = await process_topic(topic_meta, conn, client, api_key=my_key)
-            # 2.5s pacing per worker — keeps each key under 30 req/min
-            await asyncio.sleep(2.5)
+            result = await process_topic(topic_meta, conn, client, api_key=chosen_key)
+            # 10s between topics = 6 req/min per key, well under 15/min — slow drip, no IP ban risk
+            await asyncio.sleep(20.0)
             return result
 
     results = await asyncio.gather(
@@ -563,32 +763,30 @@ async def run_once(conn, client: httpx.AsyncClient):
             processed += 1
 
     log.info(f"run complete — processed={processed} skipped={skipped} errors={errors}")
+    if LLM_PROVIDER == "gemini":
+        _daily_quota_log()
 
     # ── RETRY PASS ────────────────────────────────────────────────────────────
-    # Topics that got 429'd are marked as errors. Groq rate limit resets every
-    # 60 seconds — wait, then retry the top unsummarised high-signal topics.
     errored_topics = [
         topics[i] for i, r in enumerate(results)
         if isinstance(r, Exception)
     ]
-    # Also grab any high-signal topics that were skipped (None result) but
-    # don't yet have a summary in the DB at all (first-time topics)
     missing_topics = [
         topics[i] for i, r in enumerate(results)
         if r is None and topics[i].get("signal_count", 0) >= 50
     ]
-    retry_queue = (errored_topics + missing_topics)[:10]  # top 10 only
+    retry_queue = (errored_topics + missing_topics)[:10]
 
     if retry_queue:
-        log.info(f"retry pass: {len(retry_queue)} topics after 62s rate-limit reset")
-        await asyncio.sleep(62)  # wait for Groq 1-min window to reset
+        log.info(f"retry pass: {len(retry_queue)} topics after 65s rate-limit reset")
+        await asyncio.sleep(65)  # wait for Gemini 1-min window to fully reset
         retry_processed = 0
         for topic_meta in retry_queue:
             try:
                 result = await process_topic(topic_meta, conn, client)
                 if result is not None:
                     retry_processed += 1
-                await asyncio.sleep(3)  # conservative pacing on retry
+                await asyncio.sleep(5)
             except Exception as e:
                 log.warning(f"retry failed for {topic_meta['topic']!r}: {e}")
         log.info(f"retry pass complete — processed={retry_processed}/{len(retry_queue)}")
@@ -597,12 +795,22 @@ async def run_once(conn, client: httpx.AsyncClient):
 async def main():
     log.info(f"starting topic_summariser | provider={LLM_PROVIDER} | interval={POLL_INTERVAL}s")
 
-    # Validate API keys
     if LLM_PROVIDER == "groq":
         if not GROQ_KEYS:
             log.error("no Groq keys found. Set GROQ_API_KEY_1 (and optionally _2, _3) in .env")
             return
         log.info(f"Groq key pool: {len(GROQ_KEYS)} key(s) — effective limit: {len(GROQ_KEYS) * 30} req/min")
+    elif LLM_PROVIDER == "gemini":
+        if not GEMINI_KEYS:
+            log.error("no Gemini keys found. Set GEMINI_API_KEY_1 (and optionally _2) in .env")
+            return
+        log.info(
+            f"Gemini key pool: {len(GEMINI_KEYS)} key(s) — "
+            f"effective limit: {len(GEMINI_KEYS) * 15} req/min | "
+            f"daily cap: {DAILY_REQUEST_LIMIT} req/day across all keys "
+            f"(~{DAILY_REQUEST_LIMIT // len(GEMINI_KEYS)} per key)"
+        )
+        _init_daily_counters()
     else:
         key_map = {"openai": OPENAI_KEY, "anthropic": ANTHROPIC_KEY}
         if not key_map.get(LLM_PROVIDER, ""):

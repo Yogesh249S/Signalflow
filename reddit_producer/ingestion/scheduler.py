@@ -48,7 +48,7 @@ def _get_enabled_sources():
 
     # YouTube — enabled if API key present
     from ingestion.sources.youtube import YouTubeIngester
-    if os.environ.get("YOUTUBE_API_KEY"):
+    if os.environ.get("YOUTUBE_API_KEY") or os.environ.get("YOUTUBE_API_KEY_1"):
         sources.append(YouTubeIngester())
         logger.info("YouTube ingester enabled.")
     else:
